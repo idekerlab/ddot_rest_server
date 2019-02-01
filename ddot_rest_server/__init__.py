@@ -11,7 +11,9 @@ from datetime import datetime
 import random
 import os
 import uuid
-import copy
+import json
+import shutil
+import time
 import flask
 from flask import Flask, jsonify, request
 from flask_restplus import reqparse, Api, Resource, fields, marshal
@@ -45,9 +47,34 @@ app.config[DEFAULT_RATE_LIMIT_KEY] = '360 per hour'
 
 app.config.from_envvar(DDOT_REST_SETTINGS_ENV, silent=True)
 
-LOCATION = 'Location'
 DDOT_NS = 'ddot'
 
+TASK_JSON = 'task.json'
+LOCATION = 'Location'
+RESULT = 'result.txt'
+
+
+STATUS_RESULT_KEY = 'status'
+NOTFOUND_STATUS = 'notfound'
+UNKNOWN_STATUS = 'unknown'
+SUBMITTED_STATUS = 'submitted'
+PROCESSING_STATUS = 'processing'
+DONE_STATUS = 'done'
+ERROR_STATUS = 'error'
+
+# directory where token files named after tasks to delete
+# are stored
+DELETE_REQUESTS = 'delete_requests'
+
+# key in result dictionary denoting the
+# result data
+RESULT_KEY = 'result'
+
+# key in result dictionary denoting input parameters
+PARAMETERS_KEY = 'parameters'
+INTERACTION_FILE_PARAM = 'interactionfile'
+ALPHA_PARAM = 'alpha'
+BETA_PARAM = 'beta'
 
 api = Api(app, version=str(__version__),
           title='DDOT ',
@@ -72,6 +99,175 @@ ns = api.namespace(DDOT_NS,
                    description='DDOT REST Service')
 
 app.config.SWAGGER_UI_DOC_EXPANSION = 'list'
+
+
+def get_uuid():
+    """
+    Generates UUID and returns as string. With one caveat,
+    if app.config[USE_SEQUENTIAL_UUID] is set and True
+    then uuid_counter is returned and incremented
+    :return: uuid as string
+    """
+    return str(uuid.uuid4())
+
+
+def get_submit_dir():
+    """
+    Gets base directory where submitted jobs will be placed
+    :return:
+    """
+    return os.path.join(app.config[JOB_PATH_KEY], SUBMITTED_STATUS)
+
+
+def get_processing_dir():
+    """
+        Gets base directory where processing jobs will be placed
+    :return:
+    """
+    return os.path.join(app.config[JOB_PATH_KEY], PROCESSING_STATUS)
+
+
+def get_done_dir():
+    """
+        Gets base directory where completed jobs will be placed
+
+    :return:
+    """
+    return os.path.join(app.config[JOB_PATH_KEY], DONE_STATUS)
+
+
+def get_delete_request_dir():
+    """
+    Gets base directory where delete request token files will be placed
+    :return:
+    """
+    return os.path.join(app.config[JOB_PATH_KEY], DELETE_REQUESTS)
+
+
+def create_task(params):
+    """
+    Creates a task by consuming data from request_obj passed in
+    and persisting that information to the filesystem under
+    JOB_PATH/SUBMIT_DIR/<IP ADDRESS>/UUID with various parameters
+    stored in TASK_JSON file and if the 'network' file is set
+    that data is dumped to NETWORK_DATA file within the directory
+    :param request_obj:
+    :return: string that is a uuid which denotes directory name
+    """
+    params['uuid'] = get_uuid()
+    params['tasktype'] = 'ddot_ontology'
+    taskpath = os.path.join(get_submit_dir(), str(params['remoteip']),
+                            str(params['uuid']))
+    os.makedirs(taskpath, mode=0o755)
+
+    app.logger.debug('interaction file param: ' +
+                     str(params[INTERACTION_FILE_PARAM]))
+    interfile_path = os.path.join(taskpath, INTERACTION_FILE_PARAM)
+    with open(interfile_path, 'wb') as f:
+        shutil.copyfileobj(params[INTERACTION_FILE_PARAM].stream, f)
+        f.flush()
+    params[INTERACTION_FILE_PARAM] = INTERACTION_FILE_PARAM
+    app.logger.debug(interfile_path + ' saved and it is ' +
+                     str(os.path.getsize(interfile_path)) + ' bytes')
+
+    tmp_task_json = TASK_JSON + '.tmp'
+    taskfilename = os.path.join(taskpath, tmp_task_json)
+    with open(taskfilename, 'w') as f:
+        json.dump(params, f)
+        f.flush()
+
+    shutil.move(taskfilename, os.path.join(taskpath, TASK_JSON))
+    return params['uuid']
+
+
+def log_task_json_file(taskpath):
+    """
+    Writes information about task to logger
+    :param taskpath: path to task
+    :return: None
+    """
+    if taskpath is None:
+        return None
+
+    tmp_task_json = TASK_JSON
+    taskfilename = os.path.join(taskpath, tmp_task_json)
+
+    if not os.path.isfile(taskfilename):
+        return None
+
+    with open(taskfilename, 'r') as f:
+        data = json.load(f)
+        app.logger.info('Json file of task: ' + str(data))
+
+
+def get_task(uuidstr, iphintlist=None, basedir=None):
+    """
+    Gets task under under basedir.
+    :param uuidstr: uuid string for task
+    :param iphintlist: list of ip addresses as strings to speed up search.
+                       if set then each
+                       '/<basedir>//<iphintlist entry>/<uuidstr>'
+                       is first checked and if the path is a directory
+                       it is returned
+    :param basedir:  base directory as string ie /foo
+    :return: full path to task or None if not found
+    """
+    if uuidstr is None:
+        app.logger.warning('Path passed in is None')
+        return None
+
+    if basedir is None:
+        app.logger.error('basedir is None')
+        return None
+
+    if not os.path.isdir(basedir):
+        app.logger.error(basedir + ' is not a directory')
+        return None
+
+    # Todo: Add logic to leverage iphintlist
+    # Todo: Add a retry if not found with small delay in case of dir is moving
+    for entry in os.listdir(basedir):
+        ip_path = os.path.join(basedir, entry)
+        if not os.path.isdir(ip_path):
+            continue
+        for subentry in os.listdir(ip_path):
+            if uuidstr != subentry:
+                continue
+            taskpath = os.path.join(ip_path, subentry)
+
+            if os.path.isdir(taskpath):
+                return taskpath
+    return None
+
+
+def wait_for_task(uuidstr, hintlist=None):
+    """
+    Waits for task to appear in done directory
+    :param uuidstr: uuid of task
+    :param hintlist: list of ip addresses to search under
+    :return: string containing full path to task or None if not found
+    """
+    if uuidstr is None:
+        app.logger.error('uuid is None')
+        return None
+
+    counter = 0
+    taskpath = None
+    done_dir = get_done_dir()
+    while counter < app.config[WAIT_COUNT_KEY]:
+        taskpath = get_task(uuidstr, iphintlist=hintlist,
+                            basedir=done_dir)
+        if taskpath is not None:
+            break
+        app.logger.debug('Sleeping while waiting for ' + uuidstr)
+        time.sleep(app.config[SLEEP_TIME_KEY])
+        counter = counter + 1
+
+    if taskpath is None:
+        app.logger.info('Wait time exceeded while looking for: ' + uuidstr)
+
+    return taskpath
+
 
 ERROR_RESP = api.model('ErrorResponseSchema', {
     'errorCode': fields.String(description='Error code to help identify issue'),
@@ -124,15 +320,15 @@ class RunOntology(Resource):
 
     post_parser = reqparse.RequestParser()
 
-    post_parser.add_argument('interactionfile', type=reqparse.FileStorage,
+    post_parser.add_argument(INTERACTION_FILE_PARAM, type=reqparse.FileStorage,
                              required=True,
                              help='tab delimited file with 3 columes like so: '
                                   'ARL2BP	DDAH1	0.5101',
                              location='files')
-    post_parser.add_argument('alpha', type=float, default=0.05,
+    post_parser.add_argument(ALPHA_PARAM, type=float, default=0.05,
                              help='Sets alpha parameter',
                              location='form')
-    post_parser.add_argument('beta', type=float, default=0.5,
+    post_parser.add_argument(BETA_PARAM, type=float, default=0.5,
                              help='Sets beta parameter',
                              location='form')
 
@@ -239,26 +435,19 @@ class ServerStatus(object):
             self.status = 'error'
             self.message = 'Disk is full'
         else:
-            self.status = random.choice(['ok', 'error'])
-
+            self.status = 'ok'
         loadavg = os.getloadavg()
 
         self.load[0] = loadavg[0]
         self.load[1] = loadavg[1]
         self.load[2] = loadavg[2]
 
-        self.queries[0] = random.randint(0, 500)
-        self.queries[1] = self.queries[0] + random.randint(0, 500)
-        self.queries[2] = self.queries[1] + random.randint(0, 500)
-        self.queries[3] = self.queries[2] + random.randint(0, 500)
-        self.queries[4] = self.queries[3] + random.randint(0, 500)
 
-
-@ns.route('/status', strict_slashes=False)
+@ns.route('/status', strict_slashes=False, doc=False)
 class SystemStatus(Resource):
-
-    OK_STATUS = 'ok'
-
+    """
+    System status
+    """
     statusobj = api.model('StatusSchema', {
         'status': fields.String(description='ok|error'),
         'pcDiskFull': fields.Integer(description='How full disk is in %'),
