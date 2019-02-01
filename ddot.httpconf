@@ -1,0 +1,12 @@
+<VirtualHost *:80>
+    ServerName localhost
+
+    WSGIDaemonProcess ddot user=apache group=apache threads=5
+    WSGIScriptAlias /ddot/rest/v1 /var/www/ddot/ddot.wsgi
+
+    <Directory /var/www/ddot>
+        WSGIProcessGroup ddot
+        WSGIApplicationGroup %{GLOBAL}
+        Require all granted
+    </Directory>
+</VirtualHost>
