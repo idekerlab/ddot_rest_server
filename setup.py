@@ -13,7 +13,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-with open(os.path.join('fake_cytoscapesearch', '__init__.py')) as ver_file:
+with open(os.path.join('ddot_rest_server', '__init__.py')) as ver_file:
     for line in ver_file:
         if line.startswith('__version__'):
             version=re.sub("'", "", line[line.index("'"):])
@@ -23,15 +23,13 @@ requirements = [
     'tzlocal',
     'flask',
     'flask-restplus',
-    'Flask-Limiter'
+    'Flask-Limiter',
+    'docker'
 ]
 
 setup_requirements = [ ]
 
 test_requirements = [
-    'argparse',
-    'flask',
-    'flask-restplus',
     'unittest2'
 ]
 
@@ -49,18 +47,19 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
-    description="Fake enrichment",
+    description="DDOT REST service",
     install_requires=requirements,
     license="BSD license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
-    keywords='fake enrichment',
-    name='fake_cytoscapesearch',
-    packages=find_packages(include=['fake_cytoscapesearch']),
+    keywords='DDOT',
+    name='ddot_rest_server',
+    packages=find_packages(include=['ddot_rest_server']),
+    scripts=['ddot_rest_server/ddot_taskrunner.py'],
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/coleslaw481/fake_cytoscapesearch',
+    url='https://github.com/coleslaw481/ddot_rest_server',
     version=version,
     zip_safe=False,
 )
