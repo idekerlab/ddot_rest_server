@@ -9,9 +9,11 @@ import time
 import shutil
 import json
 import glob
+import csv
 
 import ddot_rest_server
 import docker
+from docker.errors import ContainerError
 
 logger = logging.getLogger('ddot_taskrunner')
 
@@ -130,7 +132,7 @@ class FileBasedTask(object):
             resultfile = os.path.join(self._taskdir, ddot_rest_server.RESULT)
             logger.debug('Writing result data to: ' + resultfile)
             with open(resultfile, 'w') as f:
-                f.write(self._resultdata)
+                json.dump(self._resultdata, f)
                 f.flush()
         return None
 
@@ -163,7 +165,7 @@ class FileBasedTask(object):
                 emsg = error_message
             logger.info('Task set to error state with message: ' +
                         emsg)
-            self._taskdict[ddot_rest_server.ERROR_PARAM] = emsg
+            self._taskdict['error'] = emsg
             self.save_task()
         logger.debug('Changing task: ' + str(taskattrib[FileBasedTask.UUID]) +
                      ' to state ' + new_state)
@@ -183,11 +185,11 @@ class FileBasedTask(object):
         :return: None
         """
         try:
-            snpfile = self.get_snp_level_summary_file()
-            if snpfile is None:
+            tmpresult = self.get_tmp_resultpath()
+            if tmpresult is None:
                 return
-            logger.debug('Removing ' + snpfile)
-            os.unlink(snpfile)
+            logger.debug('Removing ' + tmpresult)
+            os.unlink(tmpresult)
 
         except OSError:
             logger.exception('Caught exception trying to remove file')
@@ -314,7 +316,7 @@ class FileBasedTask(object):
         res = self._taskdict[ddot_rest_server.BETA_PARAM]
         return res
 
-    def get_interactionfile_file(self):
+    def get_interactionfile(self):
         """
         Gets snp level summary file path
         :return:
@@ -327,20 +329,25 @@ class FileBasedTask(object):
             return None
         return snp_file
 
+    def get_tmp_resultpath(self):
+        """
+        Gets tmp result path
+        :return:
+        """
+        return os.path.join(self._taskdir,
+                            ddot_rest_server.TMP_RESULT)
+
 
 class FileBasedSubmittedTaskFactory(object):
     """
     Reads file system to get tasks
     """
-    def __init__(self, taskdir, protein_coding_dir,
-                 protein_coding_suffix):
+    def __init__(self, taskdir):
         self._taskdir = taskdir
         self._submitdir = None
         if self._taskdir is not None:
             self._submitdir = os.path.join(self._taskdir,
                                            ddot_rest_server.SUBMITTED_STATUS)
-        self._protein_coding_dir = protein_coding_dir
-        self._protein_coding_suffix = protein_coding_suffix
         self._problemlist = []
 
     def get_next_task(self):
@@ -479,10 +486,14 @@ class DDotTaskRunner(object):
     """
     def __init__(self, wait_time=30,
                  taskfactory=None,
-                 deletetaskfactory=None):
+                 deletetaskfactory=None,
+                 dockerclient=None,
+                 dockerimagename='michaelkyu/ddot-anaconda3'):
         self._taskfactory = taskfactory
         self._wait_time = wait_time
         self._deletetaskfactory = deletetaskfactory
+        self.docker_client = dockerclient
+        self.dockerimagename = dockerimagename
 
     def _process_task(self, task, delete_temp_files=True):
         """
@@ -497,7 +508,6 @@ class DDotTaskRunner(object):
 
         logger.info('Task processing completed')
         task.set_result_data(result)
-        task.set_ddot_version()
         task.save_task()
         task.move_task(ddot_rest_server.DONE_STATUS,
                        delete_temp_files=delete_temp_files)
@@ -514,7 +524,34 @@ class DDotTaskRunner(object):
 
         """
         logger.info('Running ddot')
-        return 'some result', None
+        try:
+            cmd = ('/bin/bash -c "/opt/conda/lib/python3.7/site-packages/ddot/clixo_0.3/clixo ' +
+                   task.get_interactionfile() + ' ' + str(task.get_alpha()) +
+                   ' ' + str(task.get_beta()) + ' > ' + task.get_tmp_resultpath() + '"')
+            volumes = {task.get_taskdir(): {'bind': task.get_taskdir(),
+                                            'mode': 'rw'}}
+            res = self.docker_client.containers.run(self.dockerimagename, cmd,
+                                                    volumes=volumes,
+                                                    working_dir=task.get_taskdir())
+
+            logger.info('Done running output: ' + res.decode('utf-8'))
+        except ContainerError as ce:
+            logger.warning('Caught docker exception, but its probably ' +
+                           'because clixo returns 1 upon success... :(')
+
+        return_json = {}
+        with open(task.get_tmp_resultpath(), 'r') as tsvfile:
+            reader = csv.DictReader(filter(lambda row: row[0] != '#',
+                                           tsvfile),
+                                    dialect='excel-tab',
+                                    fieldnames=['a', 'b', 'c', 'd'])
+            counter = 0
+            for row in reader:
+                return_json[counter] = [row.get('a'), row.get('b'),
+                                        row.get('c'), row.get('d')]
+                counter += 1
+
+        return return_json, None
 
     def run_tasks(self, keep_looping=lambda: True):
         """
@@ -572,7 +609,7 @@ class DDotTaskRunner(object):
 
 def main(args, keep_looping=lambda: True):
     """Main entry point"""
-    desc = """Runs tasks generated by NAGA REST service
+    desc = """Runs tasks generated by DDOT REST service
 
     """
     theargs = _parse_arguments(desc, args[1:])
@@ -581,12 +618,9 @@ def main(args, keep_looping=lambda: True):
     _setuplogging(theargs)
     try:
         ab_tdir = os.path.abspath(theargs.taskdir)
-        ab_pdir = os.path.abspath(theargs.protein_coding_dir)
         logger.debug('Task directory set to: ' + ab_tdir)
 
-        tfac = FileBasedSubmittedTaskFactory(ab_tdir,
-                                             ab_pdir,
-                                             theargs.protein_coding_suffix)
+        tfac = FileBasedSubmittedTaskFactory(ab_tdir)
         if theargs.disabledelete is True:
             logger.info('Deletion of tasks disabled')
             dfac = None
@@ -595,7 +629,8 @@ def main(args, keep_looping=lambda: True):
 
         runner = DDotTaskRunner(taskfactory=tfac,
                                 wait_time=theargs.wait_time,
-                                deletetaskfactory=dfac)
+                                deletetaskfactory=dfac,
+                                dockerclient=docker.from_env())
 
         runner.run_tasks(keep_looping=keep_looping)
     except Exception:

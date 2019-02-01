@@ -46,12 +46,13 @@ app.config[SLEEP_TIME_KEY] = 10
 app.config[DEFAULT_RATE_LIMIT_KEY] = '360 per hour'
 
 app.config.from_envvar(DDOT_REST_SETTINGS_ENV, silent=True)
-
+app.logger.info('Job Path dir: ' + app.config[JOB_PATH_KEY])
 DDOT_NS = 'ddot'
 
 TASK_JSON = 'task.json'
 LOCATION = 'Location'
-RESULT = 'result.txt'
+TMP_RESULT = 'result.tmp'
+RESULT = 'result.json'
 
 
 STATUS_RESULT_KEY = 'status'
@@ -292,8 +293,6 @@ RATE_LIMIT_HEADERS = {
 class ErrorResponse(object):
     """Error response
     """
-    
-
     def __init__(self):
         """
         Constructor
@@ -350,10 +349,10 @@ class RunOntology(Resource):
         app.logger.debug("Post received")
 
         try:
-            if random.choice(['success', 'fail']) is 'fail':
-                raise Exception('something failed')
+            params = RunOntology.post_parser.parse_args(request, strict=True)
+            params['remoteip'] = request.remote_addr
 
-            res = str(uuid.uuid4())
+            res = create_task(params)
 
             resp = flask.make_response()
             resp.headers[LOCATION] = DDOT_NS + '/' + res
@@ -371,9 +370,6 @@ class RunOntology(Resource):
 @ns.route('/<string:id>', strict_slashes=False)
 class GetQueryResult(Resource):
     """More class doc here"""
-
-
-
     @api.response(200, 'Successful response from server')
     @api.response(410, 'Task not found')
     @api.response(429, 'Too many requests', TOO_MANY_REQUESTS)
@@ -385,11 +381,71 @@ class GetQueryResult(Resource):
 
 
         """
+        cleanid = id.strip()
 
-        er = ErrorResponse()
-        er.message = 'implement this'
-        er.description = 'more detailed error heehe'
-        return marshal(er, ERROR_RESP), 500
+        taskpath = get_task(cleanid, basedir=get_submit_dir())
+
+        if taskpath is not None:
+            resp = jsonify({STATUS_RESULT_KEY: SUBMITTED_STATUS,
+                            PARAMETERS_KEY: self._get_task_parameters(taskpath)})
+            resp.status_code = 200
+            return resp
+
+        taskpath = get_task(cleanid, basedir=get_processing_dir())
+
+        if taskpath is not None:
+            resp = jsonify({STATUS_RESULT_KEY: PROCESSING_STATUS,
+                            PARAMETERS_KEY: self._get_task_parameters(taskpath)})
+            resp.status_code = 200
+            return resp
+
+        taskpath = get_task(cleanid, basedir=get_done_dir())
+
+        if taskpath is None:
+            resp = jsonify({STATUS_RESULT_KEY: NOTFOUND_STATUS,
+                            PARAMETERS_KEY: None})
+            resp.status_code = 410
+            return resp
+
+        result = os.path.join(taskpath, RESULT)
+        if not os.path.isfile(result):
+            er = ErrorResponse()
+            er.message = 'No result found'
+            er.description = self._get_task_parameters(taskpath)
+            return marshal(er, ERROR_RESP), 500
+
+        log_task_json_file(taskpath)
+        app.logger.info('Result file is ' + str(os.path.getsize(result)) +
+                        ' bytes')
+
+        with open(result, 'r') as f:
+            data = json.load(f)
+
+        return jsonify({STATUS_RESULT_KEY: DONE_STATUS,
+                        RESULT_KEY: data,
+                        PARAMETERS_KEY: self._get_task_parameters(taskpath)})
+
+    def _get_task_parameters(self, taskpath):
+        """
+        Gets task parameters from TASK_JSON file as
+        a dictionary
+        :param taskpath:
+        :return: task parameters
+        :rtype dict:
+        """
+        taskparams = None
+        try:
+            taskjsonfile = os.path.join(taskpath, TASK_JSON)
+
+            if os.path.isfile(taskjsonfile):
+                with open(taskjsonfile, 'r') as f:
+                    taskparams = json.load(f)
+                if 'remoteip' in taskparams:
+                    # delete the remote ip
+                    del taskparams['remoteip']
+        except Exception:
+            app.logger.exception('Caught exception getting parameters')
+        return taskparams
 
     @api.doc('Creates request to delete query')
     @api.response(200, 'Delete request successfully received')
@@ -400,21 +456,30 @@ class GetQueryResult(Resource):
         """
         Deletes task associated with {id} passed in
         """
-        s = random.choice([200, 400, 500])
-        if s is 200:
-            resp = flask.make_response()
-            resp.status_code = s
+        resp = flask.make_response()
+        try:
+            req_dir = get_delete_request_dir()
+            if not os.path.isdir(req_dir):
+                app.logger.debug('Creating directory: ' + req_dir)
+                os.makedirs(req_dir, mode=0o755)
+
+            cleanid = id.strip()
+            if len(cleanid) > 40 or len(cleanid) == 0:
+                er = ErrorResponse()
+                er.message = 'Invalid id'
+                er.description = 'id is empty or greater then 40 chars'
+                return marshal(er, ERROR_RESP), 400
+
+            with open(os.path.join(req_dir, cleanid), 'w') as f:
+                f.write(request.remote_addr)
+                f.flush()
+            resp.status_code = 200
             return resp
-
-        er = ErrorResponse()
-        if s is 400:
-            er.message = 'Invalid request somehow'
-            er.description = 'hi'
-        if s is 500:
-            er.message = 'some server error'
-            er.description = 'hi there'
-
-        return marshal(er, ERROR_RESP), s
+        except Exception as e:
+            er = ErrorResponse()
+            er.message = 'Caught exception'
+            er.description = str(e)
+            return marshal(er, ERROR_RESP), 500
 
 
 class ServerStatus(object):

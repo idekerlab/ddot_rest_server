@@ -3,19 +3,13 @@
 
 """Tests for `ddot_rest_server` package."""
 
-
 import os
 import json
 import unittest
 import shutil
 import tempfile
-import re
-import io
-import uuid
 
-from werkzeug.datastructures import FileStorage
-
-import fake_cytoscapesearch
+import ddot_rest_server
 
 
 class TestNbgwas_rest(unittest.TestCase):
@@ -24,11 +18,11 @@ class TestNbgwas_rest(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures, if any."""
         self._temp_dir = tempfile.mkdtemp()
-        fake_cytoscapesearch.app.testing = True
-        fake_cytoscapesearch.app.config[fake_cytoscapesearch.JOB_PATH_KEY] = self._temp_dir
-        fake_cytoscapesearch.app.config[fake_cytoscapesearch.WAIT_COUNT_KEY] = 1
-        fake_cytoscapesearch.app.config[fake_cytoscapesearch.SLEEP_TIME_KEY] = 0
-        self._app = fake_cytoscapesearch.app.test_client()
+        ddot_rest_server.app.testing = True
+        ddot_rest_server.app.config[ddot_rest_server.JOB_PATH_KEY] = self._temp_dir
+        ddot_rest_server.app.config[ddot_rest_server.WAIT_COUNT_KEY] = 1
+        ddot_rest_server.app.config[ddot_rest_server.SLEEP_TIME_KEY] = 0
+        self._app = ddot_rest_server.app.test_client()
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
@@ -41,16 +35,16 @@ class TestNbgwas_rest(unittest.TestCase):
         self.assertTrue('Fake Cytoscape Search' in str(rv.data))
 
     def test_delete(self):
-        rv = self._app.delete(fake_cytoscapesearch.CYTOSEARCH_NS + '/yoyo')
+        rv = self._app.delete(ddot_rest_server.DDOT_NS + '/yoyo')
 
         self.assertTrue(rv.status_code in [200, 410, 500])
 
         # try with not set path
-        rv = self._app.delete(fake_cytoscapesearch.CYTOSEARCH_NS + '/')
-        self.assertEqual(rv.status_code, 405)
+        rv = self._app.delete(ddot_rest_server.DDOT_NS + '/')
+        self.assertEqual(rv.status_code, 404)
 
     def test_get_status(self):
-        rv = self._app.get(fake_cytoscapesearch.CYTOSEARCH_NS + '/status')
+        rv = self._app.get(ddot_rest_server.DDOT_NS + '/status')
         data = json.loads(rv.data)
         self.assertTrue('status' in data or 'message' in data)
         self.assertTrue(rv.status_code in [200, 500])
