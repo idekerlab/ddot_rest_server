@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Tests for `fake_cytoscapesearch` package."""
+"""Tests for `ddot_rest_server` package."""
 
 
 import os
@@ -19,7 +19,7 @@ import fake_cytoscapesearch
 
 
 class TestNbgwas_rest(unittest.TestCase):
-    """Tests for `fake_cytoscapesearch` package."""
+    """Tests for `ddot_rest_server` package."""
 
     def setUp(self):
         """Set up test fixtures, if any."""
