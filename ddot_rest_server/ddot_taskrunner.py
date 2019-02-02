@@ -10,6 +10,7 @@ import shutil
 import json
 import glob
 import csv
+import io
 
 import ddot_rest_server
 import docker
@@ -32,6 +33,15 @@ def _parse_arguments(desc, args):
                         help='Time in seconds to wait'
                              'before looking for new'
                              'tasks')
+    parser.add_argument('--dockerimagename', default='michaelkyu/ddot-anaconda3',
+                        help='Name of docker image to use to run ddot (default'
+                             ' michaelkyu/ddot-anaconda3)')
+    parser.add_argument('--clixopath', default='/opt/conda/lib/python3.7/'
+                                               'site-packages/ddot/clixo_0'
+                                               '.3/clixo',
+                        help='Path to clixo command in docker image (defa'
+                             'ult /opt/conda/lib/python3.7/site-packages/'
+                             'ddot/clixo_0.3/clixo')
     parser.add_argument('--disabledelete', action='store_true',
                         help='If set, task runner will NOT monitor '
                              'delete requests')
@@ -69,9 +79,9 @@ class FileBasedTask(object):
     STATE = 'state'
     IPADDR = 'ipaddr'
     UUID = 'uuid'
-    OPTIMAL = 'optimal'
     TASK_FILES = [ddot_rest_server.RESULT,
-                  ddot_rest_server.TASK_JSON]
+                  ddot_rest_server.TASK_JSON,
+                  ddot_rest_server.INTERACTION_FILE_PARAM]
 
     def __init__(self, taskdir, taskdict):
         self._taskdir = taskdir
@@ -185,12 +195,7 @@ class FileBasedTask(object):
         :return: None
         """
         try:
-            tmpresult = self.get_tmp_resultpath()
-            if tmpresult is None:
-                return
-            logger.debug('Removing ' + tmpresult)
-            os.unlink(tmpresult)
-
+            pass
         except OSError:
             logger.exception('Caught exception trying to remove file')
 
@@ -298,9 +303,9 @@ class FileBasedTask(object):
         :return: alpha parameter or None
         """
         if self._taskdict is None:
-            return FileBasedTask.OPTIMAL
+            return None
         if ddot_rest_server.ALPHA_PARAM not in self._taskdict:
-            return FileBasedTask.OPTIMAL
+            return None
         res = self._taskdict[ddot_rest_server.ALPHA_PARAM]
         return res
 
@@ -310,9 +315,9 @@ class FileBasedTask(object):
         :return: beta parameter or None
         """
         if self._taskdict is None:
-            return FileBasedTask.OPTIMAL
+            return None
         if ddot_rest_server.BETA_PARAM not in self._taskdict:
-            return FileBasedTask.OPTIMAL
+            return None
         res = self._taskdict[ddot_rest_server.BETA_PARAM]
         return res
 
@@ -488,12 +493,14 @@ class DDotTaskRunner(object):
                  taskfactory=None,
                  deletetaskfactory=None,
                  dockerclient=None,
-                 dockerimagename='michaelkyu/ddot-anaconda3'):
+                 dockerimagename=None,
+                 clixopath=None):
         self._taskfactory = taskfactory
         self._wait_time = wait_time
         self._deletetaskfactory = deletetaskfactory
         self.docker_client = dockerclient
         self.dockerimagename = dockerimagename
+        self.clixopath = clixopath
 
     def _process_task(self, task, delete_temp_files=True):
         """
@@ -515,41 +522,43 @@ class DDotTaskRunner(object):
 
     def _run_ddot(self, task):
         """
-        Runs nbgwas processing
-        :param task: The task to process which is assumed to
-                     have a valid network when task.get_networkx_object()
-                     is called
+        Runs ddot processing
+        :param task: The task to process
         :return: tuple if successful result will be ({}, None) otherwise
                  (None, 'str containing error message') or (None, None)
 
         """
         logger.info('Running ddot')
         try:
-            cmd = ('/bin/bash -c "/opt/conda/lib/python3.7/site-packages/ddot/clixo_0.3/clixo ' +
+            # this /bin/bash is needed cause clixo returns 1 upon success
+            # and if the command invoked by docker client has a non zero exit
+            # code the a ContainerError is raised and any output to standard out
+            # appears to be lost. To deal with this I just use /bin/bash with
+            # ;/bin/true so docker gets a zero exit code and is happy
+            cmd = ('/bin/bash -c "' + self.clixopath + ' ' +
                    task.get_interactionfile() + ' ' + str(task.get_alpha()) +
-                   ' ' + str(task.get_beta()) + ' > ' + task.get_tmp_resultpath() + '"')
+                   ' ' + str(task.get_beta()) + '; /bin/true"')
             volumes = {task.get_taskdir(): {'bind': task.get_taskdir(),
                                             'mode': 'rw'}}
             res = self.docker_client.containers.run(self.dockerimagename, cmd,
                                                     volumes=volumes,
                                                     working_dir=task.get_taskdir())
 
-            logger.info('Done running output: ' + res.decode('utf-8'))
+            logger.info('Done running')
         except ContainerError as ce:
             logger.warning('Caught docker exception, but its probably ' +
                            'because clixo returns 1 upon success... :(')
 
         return_json = {}
-        with open(task.get_tmp_resultpath(), 'r') as tsvfile:
-            reader = csv.DictReader(filter(lambda row: row[0] != '#',
-                                           tsvfile),
-                                    dialect='excel-tab',
-                                    fieldnames=['a', 'b', 'c', 'd'])
-            counter = 0
-            for row in reader:
-                return_json[counter] = [row.get('a'), row.get('b'),
-                                        row.get('c'), row.get('d')]
-                counter += 1
+        reader = csv.DictReader(filter(lambda row: row[0] != '#',
+                                       io.StringIO(res.decode('utf-8'))),
+                                       dialect='excel-tab',
+                                       fieldnames=['a', 'b', 'c', 'd'])
+        counter = 0
+        for row in reader:
+            return_json[counter] = [row.get('a'), row.get('b'),
+                                    row.get('c'), row.get('d')]
+            counter += 1
 
         return return_json, None
 
@@ -630,7 +639,9 @@ def main(args, keep_looping=lambda: True):
         runner = DDotTaskRunner(taskfactory=tfac,
                                 wait_time=theargs.wait_time,
                                 deletetaskfactory=dfac,
-                                dockerclient=docker.from_env())
+                                dockerclient=docker.from_env(),
+                                dockerimagename=theargs.dockerimagename,
+                                clixopath=theargs.clixopath)
 
         runner.run_tasks(keep_looping=keep_looping)
     except Exception:
