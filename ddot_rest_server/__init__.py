@@ -367,7 +367,7 @@ class RunOntology(Resource):
             return marshal(er, ERROR_RESP), 500
 
 
-@ns.route('/<string:id>', strict_slashes=False)
+@ns.route('/ontology/<string:id>', strict_slashes=False)
 class GetQueryResult(Resource):
     """More class doc here"""
     @api.response(200, 'Successful response from server')
