@@ -115,8 +115,8 @@ class TestDdot_rest(unittest.TestCase):
         self.assertTrue('Data-Driven Ontology Toolkit' in str(rv.data))
 
     def test_delete(self):
-        rv = self._app.delete(ddot_rest_server.DDOT_NS +
-                              '/ontology/hehex')
+        rv = self._app.delete(ddot_rest_server.ONTOLOGY_NS +
+                              '/hehex')
 
         self.assertEqual(rv.status_code, 200)
         hehefile = os.path.join(self._temp_dir,
@@ -125,12 +125,12 @@ class TestDdot_rest(unittest.TestCase):
         self.assertTrue(os.path.isfile(hehefile))
 
         # try with not set path
-        rv = self._app.delete(ddot_rest_server.DDOT_NS + '/ontology')
+        rv = self._app.delete(ddot_rest_server.ONTOLOGY_NS)
         self.assertEqual(rv.status_code, 405)
 
         # try with path greater then 40 characters
-        rv = self._app.delete(ddot_rest_server.DDOT_NS +
-                              '/ontology/' + 'a' * 41)
+        rv = self._app.delete(ddot_rest_server.ONTOLOGY_NS +
+                              '/' + 'a' * 41)
         self.assertEqual(rv.status_code, 400)
 
         # try where we get os error
@@ -138,15 +138,15 @@ class TestDdot_rest(unittest.TestCase):
                             ddot_rest_server.DELETE_REQUESTS,
                             'hehe')
         os.makedirs(xdir, mode=0o755)
-        rv = self._app.delete(ddot_rest_server.DDOT_NS +
-                              '/ontology/hehe')
+        rv = self._app.delete(ddot_rest_server.ONTOLOGY_NS +
+                              '/hehe')
         self.assertEqual(rv.status_code, 500)
         
     def test_post_missing_required_parameter(self):
         pdict = {}
         pdict[ddot_rest_server.ALPHA_PARAM] = 0.4,
-        rv = self._app.post(ddot_rest_server.DDOT_NS +
-                            '/ontology', data=pdict,
+        rv = self._app.post(ddot_rest_server.ONTOLOGY_NS +
+                            '/', data=pdict,
                             follow_redirects=True)
         self.assertTrue('interactionfile' in rv.json['errors'])
 
@@ -158,13 +158,13 @@ class TestDdot_rest(unittest.TestCase):
         pdict[ddot_rest_server.BETA_PARAM] = 1.0
         pdict[ddot_rest_server.INTERACTION_FILE_PARAM] = (io.BytesIO(b'hi there'),
                                                       'yo.txt')
-        rv = self._app.post(ddot_rest_server.DDOT_NS +
-                            '/ontology', data=pdict,
+        rv = self._app.post(ddot_rest_server.ONTOLOGY_NS,
+                            data=pdict,
                             follow_redirects=True)
         self.assertEqual(rv.status_code, 202)
         res = rv.headers['Location']
         self.assertTrue(res is not None)
-        self.assertTrue(ddot_rest_server.DDOT_NS in res)
+        self.assertTrue(ddot_rest_server.ONTOLOGY_NS in res)
 
         uuidstr = re.sub('^.*/', '', res)
         ddot_rest_server.app.config[ddot_rest_server.JOB_PATH_KEY] = self._temp_dir
@@ -186,7 +186,7 @@ class TestDdot_rest(unittest.TestCase):
     def test_get_status(self):
         submitdir = ddot_rest_server.get_submit_dir()
         os.makedirs(submitdir, mode=0o755)
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/status')
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS + '/status')
         data = json.loads(rv.data)
         self.assertEqual(data['status'], 'ok')
         self.assertEqual(data['restVersion'],
@@ -196,14 +196,14 @@ class TestDdot_rest(unittest.TestCase):
         self.assertEqual(rv.status_code, 200)
         
     def test_get_id_none(self):
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology')
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS)
         self.assertEqual(rv.status_code, 405)
 
     def test_get_id_not_found(self):
         done_dir = os.path.join(self._temp_dir,
                                 ddot_rest_server.DONE_STATUS)
         os.makedirs(done_dir, mode=0o755)
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/1234')
         data = json.loads(rv.data)
         self.assertEqual(data[ddot_rest_server.STATUS_RESULT_KEY],
@@ -215,7 +215,7 @@ class TestDdot_rest(unittest.TestCase):
                                 ddot_rest_server.SUBMITTED_STATUS,
                                 '45.67.54.33', 'qazxsw')
         os.makedirs(task_dir, mode=0o755)
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/qazxsw')
         data = json.loads(rv.data)
         self.assertEqual(data[ddot_rest_server.STATUS_RESULT_KEY],
@@ -227,7 +227,7 @@ class TestDdot_rest(unittest.TestCase):
                                 ddot_rest_server.PROCESSING_STATUS,
                                 '45.67.54.33', 'qazxsw')
         os.makedirs(task_dir, mode=0o755)
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/qazxsw')
         data = json.loads(rv.data)
         self.assertEqual(data[ddot_rest_server.STATUS_RESULT_KEY],
@@ -239,7 +239,7 @@ class TestDdot_rest(unittest.TestCase):
                                 ddot_rest_server.DONE_STATUS,
                                 '45.67.54.33', 'qazxsw')
         os.makedirs(task_dir, mode=0o755)
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/qazxsw')
         data = json.loads(rv.data)
         self.assertEqual(data['message'],
@@ -256,7 +256,7 @@ class TestDdot_rest(unittest.TestCase):
             f.write('{ "hello": "there"}')
             f.flush()
 
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/qazxsw')
         data = json.loads(rv.data)
         self.assertEqual(data[ddot_rest_server.STATUS_RESULT_KEY],
@@ -278,7 +278,7 @@ class TestDdot_rest(unittest.TestCase):
             f.write('{"task": "yo"}')
             f.flush()
 
-        rv = self._app.get(ddot_rest_server.DDOT_NS + '/ontology' +
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS +
                            '/qazxsw')
         data = json.loads(rv.data)
         self.assertEqual(data[ddot_rest_server.STATUS_RESULT_KEY],

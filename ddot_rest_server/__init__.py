@@ -4,7 +4,7 @@
 
 __author__ = """Chris Churas"""
 __email__ = 'churas.camera@gmail.com'
-__version__ = '0.1.0'
+__version__ = '1.0.0'
 
 from datetime import datetime
 import os
@@ -48,7 +48,7 @@ app.config[DEFAULT_RATE_LIMIT_KEY] = '360 per hour'
 
 app.config.from_envvar(DDOT_REST_SETTINGS_ENV, silent=True)
 app.logger.info('Job Path dir: ' + app.config[JOB_PATH_KEY])
-DDOT_NS = 'ddot'
+ONTOLOGY_NS = 'ontology'
 
 TASK_JSON = 'task.json'
 LOCATION = 'Location'
@@ -97,7 +97,7 @@ for handler in app.logger.handlers:
 # need to clear out the default namespace
 api.namespaces.clear()
 
-ns = api.namespace(DDOT_NS,
+ns = api.namespace(ONTOLOGY_NS,
                    description='DDOT REST Service')
 
 app.config.SWAGGER_UI_DOC_EXPANSION = 'list'
@@ -310,7 +310,7 @@ class ErrorResponse(object):
 
 
 @api.doc('Runs query')
-@ns.route('/ontology', strict_slashes=False)
+@ns.route('/', strict_slashes=False)
 class RunOntology(Resource):
     """
     Runs ontology
@@ -362,7 +362,7 @@ class RunOntology(Resource):
             res = create_task(params)
 
             resp = flask.make_response()
-            resp.headers[LOCATION] = DDOT_NS + '/' + res
+            resp.headers[LOCATION] = ONTOLOGY_NS + '/' + res
             resp.status_code = 202
             return resp
         except OSError as ea:
@@ -374,7 +374,7 @@ class RunOntology(Resource):
             return marshal(er, ERROR_RESP), 500
 
 
-@ns.route('/ontology/<string:id>', strict_slashes=False)
+@ns.route('/<string:id>', strict_slashes=False)
 class GetQueryResult(Resource):
     """More class doc here"""
     @api.response(200, 'Successful response from server')
