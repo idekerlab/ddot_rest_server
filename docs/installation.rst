@@ -8,13 +8,13 @@ Installation
 Stable release
 --------------
 
-To install fake_cytoscapesearch, run this command in your terminal:
+To install ddot_rest_server, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install fake_cytoscapesearch
+    $ pip install ddot_rest_server
 
-This is the preferred method to install fake_cytoscapesearch, as it will always install the most recent stable release.
+This is the preferred method to install ddot_rest_server, as it will always install the most recent stable release.
 
 If you don't have `pip`_ installed, this `Python installation guide`_ can guide
 you through the process.
@@ -26,19 +26,19 @@ you through the process.
 From sources
 ------------
 
-The sources for fake_cytoscapesearch can be downloaded from the `Github repo`_.
+The sources for ddot_rest_server can be downloaded from the `Github repo`_.
 
 You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/coleslaw481/fake_cytoscapesearch
+    $ git clone git://github.com/coleslaw481/ddot_rest_server
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/coleslaw481/fake_cytoscapesearch/tarball/master
+    $ curl  -OL https://github.com/coleslaw481/ddot_rest_server/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/coleslaw481/fake_cytoscapesearch
-.. _tarball: https://github.com/coleslaw481/fake_cytoscapesearch/tarball/master
+.. _Github repo: https://github.com/coleslaw481/ddot_rest_server
+.. _tarball: https://github.com/coleslaw481/ddot_rest_server/tarball/master

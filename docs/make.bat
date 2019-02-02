@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=.
 set BUILDDIR=_build
-set SPHINXPROJ=fake_cytoscapesearch
+set SPHINXPROJ=ddot_rest_server
 
 if "%1" == "" goto help
 

@@ -1,20 +1,20 @@
-===========
-fake_cytoscapesearch
-===========
+================
+ddot_rest_server
+================
 
 
-.. image:: https://img.shields.io/pypi/v/fake_cytoscapesearch.svg
-        :target: https://pypi.python.org/pypi/fake_cytoscapesearch
+.. image:: https://img.shields.io/pypi/v/ddot_rest_server.svg
+        :target: https://pypi.python.org/pypi/ddot_rest_server
 
-.. image:: https://img.shields.io/travis/coleslaw481/fake_cytoscapesearch.svg
-        :target: https://travis-ci.org/coleslaw481/fake_cytoscapesearch
+.. image:: https://img.shields.io/travis/coleslaw481/ddot_rest_server.svg
+        :target: https://travis-ci.org/coleslaw481/ddot_rest_server
 
 
 
 
 Fake Enrichment REST service
 
-`For more information please click here to visit our wiki <https://github.com/coleslaw481/fake_cytoscapesearch/wiki>`_
+`For more information please click here to visit our wiki <https://github.com/coleslaw481/ddot_rest_server/wiki>`_
 
 
 Compatibility
@@ -43,8 +43,8 @@ It is highly reccommended one use `Anaconda <https://www.anaconda.com/>`_ for Py
 
 .. code:: bash
 
-  git clone https://github.com/coleslaw481/fake_cytoscapesearch.git
-  cd fake_cytoscapesearch
+  git clone https://github.com/coleslaw481/ddot_rest_server.git
+  cd ddot_rest_server
   make install
 
 Running service in development mode
@@ -56,14 +56,14 @@ Running service in development mode
 .. code:: bash
 
   # It is assumed the application has been installed as described above
-  export FLASK_APP=fake_cytoscapesearch
+  export FLASK_APP=ddot_rest_server
   flask run # --host=0.0.0.0 can be added to allow all access from interfaces
   
   # Service will be running on http://localhost:5000
 
 
 
-`Click here for information on launching service via Vagrant VM <https://github.com/coleslaw481/fake_cytoscapesearch/wiki/NAGA-REST-under-Vagrant-Virtual-Machine>`_
+`Click here for information on launching service via Vagrant VM <https://github.com/coleslaw481/ddot_rest_server/wiki/NAGA-REST-under-Vagrant-Virtual-Machine>`_
 
 
 Example usage of service
@@ -78,7 +78,7 @@ TODO
 Bugs
 -----
 
-Please report them `here <https://github.com/coleslaw481/fake_cytoscapesearch/issues>`_
+Please report them `here <https://github.com/coleslaw481/ddot_rest_server/issues>`_
 
 Acknowledgements
 ----------------

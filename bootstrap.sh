@@ -43,28 +43,28 @@ pip install mod_wsgi
 
 # install fake_cytoscapesearch
 # TODO this should install the version in /vagrant
-git clone --single-branch --depth 1 https://github.com/coleslaw481/fake_cytoscapesearch.git
-pushd fake_cytoscapesearch
+git clone --single-branch --depth 1 https://github.com/coleslaw481/ddot_rest_server.git
+pushd ddot_rest_server
 make dist
-pip install dist/fake_cytoscapesearch*whl
+pip install dist/ddot_rest_server*whl
 # copy the http configuration file
-cp fakecytoscapesearch.httpconf /etc/httpd/conf.d/fake_cytoscapesearch.conf
+cp ddot.httpconf /etc/httpd/conf.d/ddot_rest.conf
 popd
 
-mkdir /var/www/fake_cytoscapesearch_rest
+mkdir /var/www/ddot_rest
 
 # write the WSGI file
-cat <<EOF > /var/www/fake_cytoscapesearch_rest/fake_cytoscapesearch.wsgi
+cat <<EOF > /var/www/ddot_rest/ddot_rest_server.wsgi
 #!/usr/bin/env python
 
 import os
-os.environ['CYTOSEARCH_REST_SETTINGS']="/var/www/fake_cytoscapesearch_rest/fake_cytoscapesearch.cfg"
+os.environ['DDOT_REST_SETTINGS']="/var/www/ddot_rest/ddot_rest.cfg"
 
-from fake_cytoscapesearch import app as application
+from ddot_rest_server import app as application
 EOF
 
 # write the configuration file
-cat <<EOF > /var/www/fake_cytoscapesearch_rest/fake_cytoscapesearch.cfg
+cat <<EOF > /var/www/ddot_rest_server/ddot_rest.cfg
 WAIT_COUNT=600
 SLEEP_TIME=1
 EOF
@@ -73,10 +73,10 @@ mod_wsgi-express module-config > /etc/httpd/conf.modules.d/02-wsgi.conf
 
 # https://www.serverlab.ca/tutorials/linux/web-servers-linux/configuring-selinux-policies-for-apache-web-servers/
 # and tell SElinux its okay if apache writes to the directory
-# semanage fcontext -a -t httpd_sys_rw_content_t "/var/www/fake_enrichment/tasks(/.*)?"
-# restorecon -Rv /var/www/fake_enrichment/tasks
+semanage fcontext -a -t httpd_sys_rw_content_t "/var/www/ddot_rest/tasks(/.*)?"
+restorecon -Rv /var/www/ddot_rest/tasks
 
 service httpd start
 
-echo "Visit http://localhost:8081/fake_cytoscapesearch/rest/v1 in your browser"
+echo "Visit http://localhost:8081/ddot/rest/v1 in your browser"
 

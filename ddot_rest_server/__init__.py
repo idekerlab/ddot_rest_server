@@ -21,9 +21,11 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 
-desc = """DDOT REST Service 
+desc = """The Data-Driven Ontology Toolkit (DDOT) REST Service
 
- 
+The Data-Driven Ontology Toolkit (DDOT) facilitates the inference, analysis, and visualization of biological hierarchies using a data structure called an ontology.
+
+
  **NOTE:** This service is experimental. The interface is subject to change.
 
 

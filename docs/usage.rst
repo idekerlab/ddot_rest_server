@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use fake_cytoscapesearch in a project::
+To use ddot_rest_server in a project::
 
-    import fake_cytoscapesearch
+    import ddot_rest_server

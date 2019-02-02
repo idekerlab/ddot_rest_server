@@ -1,4 +1,4 @@
-Welcome to fake_cytoscapesearch's documentation!
+Welcome to ddot_rest_server's documentation!
 ======================================
 
 .. toctree::

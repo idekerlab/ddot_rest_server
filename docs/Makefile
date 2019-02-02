@@ -4,7 +4,7 @@
 # You can set these variables from the command line.
 SPHINXOPTS    =
 SPHINXBUILD   = python -msphinx
-SPHINXPROJ    = fake_cytoscapesearch
+SPHINXPROJ    = ddot_rest_server
 SOURCEDIR     = .
 BUILDDIR      = _build
 
