@@ -4,7 +4,7 @@
 
 __author__ = """Chris Churas"""
 __email__ = 'churas.camera@gmail.com'
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 from datetime import datetime
 import os
@@ -54,6 +54,9 @@ TASK_JSON = 'task.json'
 LOCATION = 'Location'
 TMP_RESULT = 'result.tmp'
 RESULT = 'result.json'
+
+ERROR_PARAM = 'error'
+REMOTEIP_PARAM = 'remoteip'
 
 
 STATUS_RESULT_KEY = 'status'
@@ -160,7 +163,11 @@ def create_task(params):
     params['tasktype'] = 'ddot_ontology'
     taskpath = os.path.join(get_submit_dir(), str(params['remoteip']),
                             str(params['uuid']))
-    os.makedirs(taskpath, mode=0o755)
+    try:
+        original_umask = os.umask(0)
+        os.makedirs(taskpath, mode=0o775)
+    finally:
+        os.umask(original_umask)
 
     app.logger.debug('interaction file param: ' +
                      str(params[INTERACTION_FILE_PARAM]))
@@ -168,6 +175,8 @@ def create_task(params):
     with open(interfile_path, 'wb') as f:
         shutil.copyfileobj(params[INTERACTION_FILE_PARAM].stream, f)
         f.flush()
+    os.chmod(interfile_path, mode=0o775)
+
     params[INTERACTION_FILE_PARAM] = INTERACTION_FILE_PARAM
     app.logger.debug(interfile_path + ' saved and it is ' +
                      str(os.path.getsize(interfile_path)) + ' bytes')
@@ -177,7 +186,7 @@ def create_task(params):
     with open(taskfilename, 'w') as f:
         json.dump(params, f)
         f.flush()
-
+    os.chmod(taskfilename, mode=0o775)
     shutil.move(taskfilename, os.path.join(taskpath, TASK_JSON))
     return params['uuid']
 
@@ -465,8 +474,11 @@ class GetQueryResult(Resource):
             req_dir = get_delete_request_dir()
             if not os.path.isdir(req_dir):
                 app.logger.debug('Creating directory: ' + req_dir)
-                os.makedirs(req_dir, mode=0o755)
-
+                try:
+                    original_umask = os.umask(0)
+                    os.makedirs(req_dir, mode=0o775)
+                finally:
+                    os.umask(original_umask)
             cleanid = id.strip()
             if len(cleanid) > 40 or len(cleanid) == 0:
                 er = ErrorResponse()
