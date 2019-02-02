@@ -12,7 +12,7 @@ ddot_rest_server
 
 
 
-Fake Enrichment REST service
+DDOT REST Service
 
 `For more information please click here to visit our wiki <https://github.com/coleslaw481/ddot_rest_server/wiki>`_
 
@@ -48,7 +48,7 @@ It is highly reccommended one use `Anaconda <https://www.anaconda.com/>`_ for Py
   make install
 
 Running service in development mode
-----------------------------------
+-----------------------------------
 
 
 **NOTE:** Example below runs the REST service and not the task runner.
