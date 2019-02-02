@@ -326,7 +326,9 @@ class RunOntology(Resource):
                                   'elements.  File should be 3 tab separated '
                                   'columns with 1 undirected edge per line '
                                   'of the format node1, node2, edgeWeight '
-                                  '(similarity between node1 and node2)',
+                                  '(similarity between node1 and node2)\n\n'
+                                  'Example file:\n\n ```Bash\nARL2BP  DDAH1 '
+                                  '  0.5101\nARL2BP  REPS1   0.6277\n```\n',
                              location='files')
     post_parser.add_argument(ALPHA_PARAM, type=float, default=0.05,
                              help='Threshold between clusters',
