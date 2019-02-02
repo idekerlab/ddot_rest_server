@@ -7,8 +7,6 @@ __email__ = 'churas.camera@gmail.com'
 __version__ = '0.0.1'
 
 from datetime import datetime
-
-import random
 import os
 import uuid
 import json
@@ -19,6 +17,7 @@ from flask import Flask, jsonify, request
 from flask_restplus import reqparse, Api, Resource, fields, marshal
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.exceptions import BadRequest
 
 
 desc = """The Data-Driven Ontology Toolkit (DDOT) REST Service
@@ -32,7 +31,6 @@ The Data-Driven Ontology Toolkit (DDOT) facilitates the inference, analysis, and
 """ # noqa
 
 
-random.seed(os.urandom(16))
 DDOT_REST_SETTINGS_ENV = 'DDOT_REST_SETTINGS'
 # global api object
 app = Flask(__name__)
@@ -80,7 +78,7 @@ ALPHA_PARAM = 'alpha'
 BETA_PARAM = 'beta'
 
 api = Api(app, version=str(__version__),
-          title='DDOT ',
+          title='Data-Driven Ontology Toolkit (DDOT) REST Service',
           description=desc, example='put example here')
 
 # enable rate limiting
@@ -338,6 +336,7 @@ class RunOntology(Resource):
                        'Visit the URL'
                        ' specified in **Location** field in HEADERS to '
                        'status and results', headers=POST_HEADERS)
+    @api.response(400, 'Bad request, an invalid input was passed in')
     @api.response(429, 'Too many requests', TOO_MANY_REQUESTS, headers=RATE_LIMIT_HEADERS)
     @api.response(500, 'Internal server error', ERROR_RESP, headers=RATE_LIMIT_HEADERS)
     @api.expect(post_parser)
@@ -360,7 +359,7 @@ class RunOntology(Resource):
             resp.headers[LOCATION] = DDOT_NS + '/' + res
             resp.status_code = 202
             return resp
-        except Exception as ea:
+        except OSError as ea:
             app.logger.exception('Error creating task due to Exception ' +
                                  str(ea))
             er = ErrorResponse()
@@ -493,12 +492,20 @@ class ServerStatus(object):
 
         self.status = 'ok'
         self.message = ''
-        self.pcdiskfull = 0
+        self.pcDiskFull = 0
         self.load = [0, 0, 0]
-        self.rest_version = __version__
+        self.restVersion = __version__
 
-        self.pcdiskfull = random.randint(0, 100)
-        if self.pcdiskfull is 100:
+        self.pcDiskFull = -1
+        try:
+            s = os.statvfs(get_submit_dir())
+            self.pcDiskFull = int(float(s.f_blocks - s.f_bavail) /
+                                  float(s.f_blocks) * 100)
+        except Exception:
+            app.logger.exception('Caught exception checking disk space')
+            self.pcDiskFull = -1
+
+        if self.pcDiskFull >= 90:
             self.status = 'error'
             self.message = 'Disk is full'
         else:
@@ -532,13 +539,5 @@ class SystemStatus(Resource):
         Gets status of service
 
         """
-        s_code = random.choice([200, 500])
-
-        if s_code is 500:
-            er = ErrorResponse()
-            er.message = 'Internal server error'
-            er.description = 'something good'
-            return marshal(er, ERROR_RESP), s_code
-
         ss = ServerStatus()
-        return marshal(ss, SystemStatus.statusobj), s_code
+        return marshal(ss, SystemStatus.statusobj), 200
