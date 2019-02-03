@@ -30,19 +30,13 @@ class TestDdotTaskRunner(unittest.TestCase):
         """Tear down test fixtures, if any."""
         pass
 
-
     def test_parse_arguments(self):
         """Test something."""
         res = dt._parse_arguments('hi', ['foo'])
         self.assertEqual(res.taskdir, 'foo')
 
         self.assertEqual(res.wait_time, 30)
-        self.assertEqual(res.verbose, 1)
         self.assertEqual(res.disabledelete, False)
-
-    def test_setuplogging(self):
-        res = dt._parse_arguments('hi', ['foo'])
-        dt._setuplogging(res)
 
     def test_filebasedtask_getter_setter_on_basic_obj(self):
 
@@ -631,6 +625,7 @@ class TestDdotTaskRunner(unittest.TestCase):
             loop = MagicMock()
             loop.side_effect = [True, True, False]
             dt.main(['foo.py', '--wait_time', '0',
+                     '--nodaemon',
                      temp_dir],
                     keep_looping=loop)
 
@@ -638,6 +633,7 @@ class TestDdotTaskRunner(unittest.TestCase):
             loop = MagicMock()
             loop.side_effect = [True, True, False]
             dt.main(['foo.py', '--wait_time', '0',
+                     '--nodaemon',
                      '--disabledelete',
                      temp_dir],
                     keep_looping=loop)
@@ -646,6 +642,7 @@ class TestDdotTaskRunner(unittest.TestCase):
             loop = MagicMock()
             loop.side_effect = Exception('some error')
             dt.main(['foo.py', '--wait_time', '0',
+                     '--nodaemon',
                      temp_dir],
                     keep_looping=loop)
         finally:
