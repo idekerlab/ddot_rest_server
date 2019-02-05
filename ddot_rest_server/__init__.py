@@ -4,7 +4,7 @@
 
 __author__ = """Chris Churas"""
 __email__ = 'churas.camera@gmail.com'
-__version__ = '1.1.0'
+__version__ = '2.0.0'
 
 from datetime import datetime
 import os
