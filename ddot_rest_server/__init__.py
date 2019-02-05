@@ -80,6 +80,11 @@ PARAMETERS_KEY = 'parameters'
 INTERACTION_FILE_PARAM = 'interactionfile'
 ALPHA_PARAM = 'alpha'
 BETA_PARAM = 'beta'
+NDEXSERVER_PARAM = 'ndexserver'
+NDEXUSER_PARAM = 'ndexuser'
+NDEXPASS_PARAM = 'ndexpass'
+NDEXNAME_PARAM = 'ndexname'
+
 
 api = Api(app, version=str(__version__),
           title='Data-Driven Ontology Toolkit (DDOT) REST Service',
