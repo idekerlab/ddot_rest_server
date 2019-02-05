@@ -25,18 +25,18 @@ def _parse_arguments(desc, args):
                                       'expected by clixo')
     parser.add_argument('--ndexserver', default='test.ndexbio.org',
                         help='NDEx server to upload ontology to (default test.ndexbio.org')
-    parser.add_argument('--ndexuser', default='scratch2',
-                        help='NDEx username (default scratch2)')
-    parser.add_argument('--ndexpass', default='scratch2',
-                        help='NDEx password (default scratch2)')
-    parser.add_argument('--ndexname', default='MODY',
-                        help='Name to give network on NDEx (default MODY)')
+    parser.add_argument('--ndexuser', default='ddot_anon',
+                        help='NDEx username (default ddot_anon)')
+    parser.add_argument('--ndexpass', default='ddot_anon',
+                        help='NDEx password (default ddot_anon)')
+    parser.add_argument('--ndexname', default='DDOTontology',
+                        help='Name to give network on NDEx (default DDOTontology)')
     parser.add_argument('--ndexlayout', default='bubble-collect',
                         help='Layout of network on NDEx (default bubble-collect)')
     parser.add_argument('--ndexvisibility', default='PUBLIC',
                         help='Visibility of network on NDEx (default PUBLIC)')
-    parser.add_argument('--alpha', default=0.01, type=float,
-                        help='Clixo alpha parameter (default 0.01)')
+    parser.add_argument('--alpha', default=0.05, type=float,
+                        help='Clixo alpha parameter (default 0.05)')
     parser.add_argument('--beta', default=0.5, type=float,
                         help='Clixo beta parameter (default 0.5)')
     parser.add_argument('--clixopath', default='/opt/conda/lib/python3.7/'
@@ -73,10 +73,16 @@ def run_ddot(theargs):
         (e_code, c_out, c_err) = run_clixo(theargs.clixopath, theargs.input, theargs.alpha, theargs.beta)
         df = pd.read_csv(io.StringIO(c_out.decode('utf-8')), sep='\t',
                          engine='python', header=None, comment='#')
+
         ont1 = Ontology.from_table(df, clixo_format=True, parent=0, child=1)
 
+        if theargs.ndexserver.startswith('http://'):
+            server = theargs.ndexserver
+        else:
+            server = 'http://' + theargs.ndexserver
+
         ont_url, G = ont1.to_ndex(name=theargs.ndexname,
-                                  ndex_server='http://' + theargs.ndexserver,
+                                  ndex_server=server,
                                   ndex_pass=theargs.ndexuser,
                                   ndex_user=theargs.ndexpass,
                                   layout=theargs.ndexlayout,
@@ -108,6 +114,7 @@ def main(args):
     if res == '':
         return 1
     json.dump(res, sys.stdout)
+    sys.stdout.flush()
     return 0
 
 
