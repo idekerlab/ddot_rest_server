@@ -69,6 +69,21 @@ class TestDdot_rest(unittest.TestCase):
                                 ddot_rest_server.INTERACTION_FILE_PARAM)
         self.assertTrue(os.path.isfile(snp_path))
 
+    def test_create_task_submitdir_is_a_file(self):
+        open(ddot_rest_server.get_submit_dir(), 'a').close()
+        pdict = {}
+        pdict['remoteip'] = '1.2.3.4'
+        pdict[ddot_rest_server.ALPHA_PARAM] = 0.01
+        pdict[ddot_rest_server.BETA_PARAM] = 0.5
+        intfile = FileStorage(stream=io.BytesIO(b'hi there'),
+                              filename='yo.txt')
+        pdict[ddot_rest_server.INTERACTION_FILE_PARAM] = intfile
+        try:
+            ddot_rest_server.create_task(pdict)
+            self.fail('Expected NotADirectoryError')
+        except NotADirectoryError:
+            pass
+
     def test_get_task_basedir_none(self):
         self.assertEqual(ddot_rest_server.get_task('foo'), None)
         
@@ -152,6 +167,19 @@ class TestDdot_rest(unittest.TestCase):
 
         self.assertEqual(rv.status_code, 400)
 
+    def test_post_create_task_fails(self):
+        open(ddot_rest_server.get_submit_dir(), 'a').close()
+        pdict = {}
+        pdict[ddot_rest_server.ALPHA_PARAM] = 0.5
+        pdict[ddot_rest_server.BETA_PARAM] = 1.0
+        pdict[ddot_rest_server.INTERACTION_FILE_PARAM] = (io.BytesIO(b'hi there'),
+                                                      'yo.txt')
+        rv = self._app.post(ddot_rest_server.ONTOLOGY_NS,
+                            data=pdict,
+                            follow_redirects=True)
+        self.assertEqual(rv.status_code, 500)
+        self.assertTrue('Error' in rv.json['message'])
+
     def test_post_ndex(self):
         pdict = {}
         pdict[ddot_rest_server.ALPHA_PARAM] = 0.5
@@ -182,6 +210,16 @@ class TestDdot_rest(unittest.TestCase):
         self.assertEqual(jdata['tasktype'], 'ddot_ontology')
         self.assertEqual(jdata[ddot_rest_server.ALPHA_PARAM], 0.5)
         self.assertEqual(jdata[ddot_rest_server.BETA_PARAM], 1.0)
+
+    def test_get_status_no_submidir(self):
+        rv = self._app.get(ddot_rest_server.ONTOLOGY_NS + '/status')
+        data = json.loads(rv.data)
+        self.assertEqual(data['status'], 'ok')
+        self.assertEqual(data['restVersion'],
+                         ddot_rest_server.__version__)
+        self.assertEqual(len(data['load']), 3)
+        self.assertTrue(data['pcDiskFull'], -1)
+        self.assertEqual(rv.status_code, 200)
 
     def test_get_status(self):
         submitdir = ddot_rest_server.get_submit_dir()
