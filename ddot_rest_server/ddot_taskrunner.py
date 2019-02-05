@@ -125,8 +125,7 @@ class FileBasedTask(object):
         return None
 
     def move_task(self, new_state,
-                  error_message=None,
-                  delete_temp_files=False):
+                  error_message=None):
         """
         Changes state of task to new_state
         :param new_state: new state
@@ -163,19 +162,7 @@ class FileBasedTask(object):
         shutil.move(self._taskdir, ptaskdir)
         self._taskdir = ptaskdir
 
-        if delete_temp_files is True:
-            self._delete_temp_files()
         return None
-
-    def _delete_temp_files(self):
-        """
-        Deletes snp level param file from filesystem
-        :return: None
-        """
-        try:
-            pass
-        except OSError:
-            logger.exception('Caught exception trying to remove file')
 
     def _get_uuid_ip_state_basedir_from_path(self):
         """
@@ -558,7 +545,6 @@ class DDotTaskRunner(object):
         else:
             status = ddot_rest_server.DONE_STATUS
         task.move_task(status,
-                       delete_temp_files=delete_temp_files,
                        error_message=emsg)
         return
 

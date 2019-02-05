@@ -225,47 +225,6 @@ class TestDdotTaskRunner(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
-    def test_filebasedtask_delete_temp_files(self):
-        temp_dir = tempfile.mkdtemp()
-        try:
-            processdir = os.path.join(temp_dir, ddot_rest_server.PROCESSING_STATUS)
-            os.makedirs(processdir, mode=0o755)
-            donedir = os.path.join(temp_dir, ddot_rest_server.DONE_STATUS)
-            os.makedirs(donedir, mode=0o755)
-            ataskdir = os.path.join(processdir, '192.168.1.1', 'qwerty-qwerty')
-            os.makedirs(ataskdir)
-            taskdict = {'hi': 'bye'}
-            task = FileBasedTask(ataskdir, taskdict)
-            self.assertEqual(task.save_task(), None)
-
-            # try move with delete true, but no file to delete
-            self.assertEqual(task.move_task(ddot_rest_server.DONE_STATUS,
-                                            delete_temp_files=True), None)
-
-            # move task back to processing
-            self.assertEqual(task.move_task(ddot_rest_server.PROCESSING_STATUS),
-                             None)
-
-            # add file and try move to done with delete set to false
-            tmpfile = os.path.join(task.get_taskdir(),
-                                   ddot_rest_server.TMP_RESULT)
-            open(tmpfile, 'a').close()
-
-            self.assertEqual(task.move_task(ddot_rest_server.DONE_STATUS),
-                             None)
-
-            self.assertTrue(os.path.isfile(task.get_tmp_resultpath()))
-
-            # move back and try move to done with delete set to true
-            self.assertEqual(task.move_task(ddot_rest_server.PROCESSING_STATUS),
-                             None)
-
-            self.assertEqual(task.move_task(ddot_rest_server.DONE_STATUS,
-                                            delete_temp_files=True),
-                             None)
-        finally:
-            shutil.rmtree(temp_dir)
-
     def test_filebasedtask_delete_task_files(self):
         temp_dir = tempfile.mkdtemp()
         try:
