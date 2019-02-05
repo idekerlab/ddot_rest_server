@@ -87,15 +87,14 @@ def run_ddot(theargs):
                                   ndex_user=theargs.ndexpass,
                                   layout=theargs.ndexlayout,
                                   visibility=theargs.ndexvisibility)
-
-        return {'ndexurl': ont_url.strip().replace('/v2/network/',
-                                                   '/#/network/')}
+        return 'RESULT:' + ont_url.strip().replace('/v2/network/',
+                                                   '/#/network/') + '\n'
     except OverflowError as ofe:
         logger.exception('Error running clixo')
-        return {'error': str(ofe)}
+        return 'ERROR:' + str(ofe) + '\n'
     except Exception as e:
         logger.exception('Some other error')
-        return {'error': str(e)}
+        return 'ERROR:' + str(e) + '\n'
 
     return {'error': 'unknown error'}
 
@@ -109,12 +108,14 @@ def main(args):
     theargs = _parse_arguments(desc, args[1:])
     theargs.program = args[0]
     theargs.version = 'unknown'
-
-    res = run_ddot(theargs)
-    if res == '':
-        return 1
-    json.dump(res, sys.stdout)
-    sys.stdout.flush()
+    try:
+        res = run_ddot(theargs)
+        if res is None or res == '':
+            sys.stdout.write('Result is empty or None wtf\n')
+        sys.stdout.write(res)
+        sys.stdout.flush()
+    except Exception as ex:
+        logger.exception('caught some error')
     return 0
 
 

@@ -10,12 +10,9 @@ import time
 import shutil
 import json
 import glob
-import csv
-import io
+import subprocess
 import daemon
 import ddot_rest_server
-import docker
-from docker.errors import ContainerError
 
 logger = logging.getLogger('ddottaskrunner')
 
@@ -39,6 +36,8 @@ def _parse_arguments(desc, args):
     parser.add_argument('--dockerimagename', default='michaelkyu/ddot-anaconda3',
                         help='Name of docker image to use to run ddot (default'
                              ' michaelkyu/ddot-anaconda3)')
+    parser.add_argument('--docker', default='/usr/bin/docker',
+                        help='Path to docker')
     parser.add_argument('--disabledelete', action='store_true',
                         help='If set, task runner will NOT monitor '
                              'delete requests')
@@ -526,13 +525,13 @@ class DDotTaskRunner(object):
     def __init__(self, wait_time=30,
                  taskfactory=None,
                  deletetaskfactory=None,
-                 dockerclient=None,
+                 docker=None,
                  dockerimagename=None,
                  runddotpath=None):
         self._taskfactory = taskfactory
         self._wait_time = wait_time
         self._deletetaskfactory = deletetaskfactory
-        self.docker_client = dockerclient
+        self.docker = docker
         self.dockerimagename = dockerimagename
         self.runddotpath = runddotpath
 
@@ -576,6 +575,19 @@ class DDotTaskRunner(object):
         splitlink = ndexurl.split('/#/network/')
         return task.get_hiviewurl() + '/' + splitlink[1] + '?type=test&server=' + splitlink[0]
 
+    def run_dockercmd(self, cmd_to_run):
+        """
+        Runs docker
+        :param cmd_to_run: command to run as list
+        :return:
+        """
+        p = subprocess.Popen(cmd_to_run,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+
+        out, err = p.communicate()
+        return p.returncode, out, err
+
     def _run_ddot(self, task):
         """
         Runs ddot processing
@@ -587,39 +599,40 @@ class DDotTaskRunner(object):
         logger.info('Running ddot')
         try:
             runddot_dir = os.path.dirname(self.runddotpath)
-            # this /bin/bash is needed cause clixo returns 1 upon success
-            # and if the command invoked by docker client has a non zero exit
-            # code the a ContainerError is raised and any output to standard out
-            # appears to be lost. To deal with this I just use /bin/bash with
-            # ;/bin/true so docker gets a zero exit code and is happy
-            cmd = ('/bin/bash -c "' + self.runddotpath +
-                   ' --alpha ' + str(task.get_alpha()) +
-                   ' --beta ' + str(task.get_beta()) +
-                   ' --ndexname ' + str(task.get_ndexname()) +
-                   ' --ndexserver ' + str(task.get_ndexserver()) +
-                   ' --ndexuser ' + str(task.get_ndexuser()) +
-                   ' --ndexpass ' + str(task.get_ndexpass()) +
-                   ' ' + task.get_interactionfile() + ' 2>&1"')
-            volumes = {task.get_taskdir(): {'bind': task.get_taskdir(),
-                                            'mode': 'ro'},
-                       runddot_dir: {'bind': runddot_dir,
-                                     'mode': 'ro'}}
-            logger.info('Running command: ' + cmd)
-            res = self.docker_client.containers.run(self.dockerimagename, cmd,
-                                                    volumes=volumes,
-                                                    working_dir=task.get_taskdir())
+            cmd = [self.docker, 'run', '-v',
+                   task.get_taskdir() + ':' + task.get_taskdir() + ':ro',
+                   '-v',
+                   runddot_dir + ':' + runddot_dir+':ro',
+                   self.dockerimagename,
+                   self.runddotpath,
+                   '--alpha', str(task.get_alpha()),
+                   '--beta', str(task.get_beta()),
+                   '--ndexname', str(task.get_ndexname()),
+                   '--ndexserver', str(task.get_ndexserver()),
+                   '--ndexuser', str(task.get_ndexuser()),
+                   '--ndexpass', str(task.get_ndexpass()),
+                   task.get_interactionfile()]
 
-            logger.info('Done running output (' + res.decode('utf-8') + ')')
-            res_json = json.loads(res.decode('utf-8'))
-            logger.info('Initial json: ' + str(res_json))
+            logger.info('Running command: ' + str(' '.join(cmd)))
+
+            p_exit, p_out, p_err = self.run_dockercmd(cmd)
+
+            decoded_res = p_out.decode('utf-8')
+            logger.debug('Exit code: ' + str(p_exit))
+            logger.debug('Done running output (' + decoded_res + ')')
+            logger.debug('Standard error (' + p_err.decode('utf-8') + ')')
+            res_json = {}
+            for line in decoded_res.split('\n'):
+                if line.startswith('RESULT:'):
+                    res_json[ddot_rest_server.NDEXURL_KEY] = line[len('RESULT:'):]
+                    break
+
+            logger.debug('res_json: ' + str(res_json))
+
             if ddot_rest_server.NDEXURL_KEY in res_json:
                 res_json[ddot_rest_server.HIVIEWURL_KEY] = self._generate_hiview_link(task,
                                                                                       res_json[ddot_rest_server.NDEXURL_KEY])
             return res_json, None
-
-        except ContainerError as ce:
-            logger.exception('Caught docker exception, but its probably ' + str(ce))
-            return {'error': str(ce)}, str(ce)
         except Exception as e:
             logger.exception('Caught exception')
             return {'error': str(e)}, str(e)
@@ -698,12 +711,11 @@ def run(theargs, keep_looping=lambda: True):
             dfac = None
         else:
             dfac = DeletedFileBasedTaskFactory(ab_tdir)
-
         runner = DDotTaskRunner(taskfactory=tfac,
                                 wait_time=theargs.wait_time,
                                 deletetaskfactory=dfac,
-                                dockerclient=docker.from_env(),
                                 dockerimagename=theargs.dockerimagename,
+                                docker=theargs.docker,
                                 runddotpath=os.path.join(ab_tdir, RUNDDOT))
 
         runner.run_tasks(keep_looping=keep_looping)

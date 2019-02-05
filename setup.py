@@ -24,7 +24,6 @@ requirements = [
     'flask',
     'flask-restplus',
     'Flask-Limiter',
-    'docker',
     'python-daemon'
 ]
 
