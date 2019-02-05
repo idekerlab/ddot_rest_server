@@ -22,6 +22,7 @@ logger = logging.getLogger('ddottaskrunner')
 LOG_FORMAT = "%(asctime)-15s %(levelname)s %(relativeCreated)dms " \
              "%(filename)s::%(funcName)s():%(lineno)d %(message)s"
 
+RUNDDOT = 'runddot.py'
 
 def _parse_arguments(desc, args):
     """Parses command line arguments"""
@@ -38,12 +39,6 @@ def _parse_arguments(desc, args):
     parser.add_argument('--dockerimagename', default='michaelkyu/ddot-anaconda3',
                         help='Name of docker image to use to run ddot (default'
                              ' michaelkyu/ddot-anaconda3)')
-    parser.add_argument('--clixopath', default='/opt/conda/lib/python3.7/'
-                                               'site-packages/ddot/clixo_0'
-                                               '.3/clixo',
-                        help='Path to clixo command in docker image (defa'
-                             'ult /opt/conda/lib/python3.7/site-packages/'
-                             'ddot/clixo_0.3/clixo')
     parser.add_argument('--disabledelete', action='store_true',
                         help='If set, task runner will NOT monitor '
                              'delete requests')
@@ -478,13 +473,13 @@ class DDotTaskRunner(object):
                  deletetaskfactory=None,
                  dockerclient=None,
                  dockerimagename=None,
-                 clixopath=None):
+                 runddotpath=None):
         self._taskfactory = taskfactory
         self._wait_time = wait_time
         self._deletetaskfactory = deletetaskfactory
         self.docker_client = dockerclient
         self.dockerimagename = dockerimagename
-        self.clixopath = clixopath
+        self.runddotpath = runddotpath
 
     def _process_task(self, task, delete_temp_files=True):
         """
@@ -514,37 +509,38 @@ class DDotTaskRunner(object):
         """
         logger.info('Running ddot')
         try:
+            runddot_dir = os.path.dirname(self.runddotpath)
             # this /bin/bash is needed cause clixo returns 1 upon success
             # and if the command invoked by docker client has a non zero exit
             # code the a ContainerError is raised and any output to standard out
             # appears to be lost. To deal with this I just use /bin/bash with
             # ;/bin/true so docker gets a zero exit code and is happy
-            cmd = ('/bin/bash -c "' + self.clixopath + ' ' +
-                   task.get_interactionfile() + ' ' + str(task.get_alpha()) +
-                   ' ' + str(task.get_beta()) + '; /bin/true"')
+            cmd = ('/bin/bash -c "' + self.runddotpath +
+                   ' --alpha ' + str(task.get_alpha()) +
+                   ' --beta ' + str(task.get_beta()) +
+                   ' ' + task.get_interactionfile() + '"')
             volumes = {task.get_taskdir(): {'bind': task.get_taskdir(),
-                                            'mode': 'rw'}}
+                                            'mode': 'ro'},
+                       runddot_dir: {'bind': runddot_dir,
+                                     'mode': 'ro'}}
             res = self.docker_client.containers.run(self.dockerimagename, cmd,
                                                     volumes=volumes,
                                                     working_dir=task.get_taskdir())
 
-            logger.info('Done running')
+            logger.info('Done running: ' + res.decode('utf-8'))
+            return_json = {}
+            return_json['result'] = json.loads(res.decode('utf-8'))
+
+            return return_json, None
+
         except ContainerError as ce:
-            logger.warning('Caught docker exception, but its probably ' +
-                           'because clixo returns 1 upon success... :(')
+            logger.exception('Caught docker exception, but its probably ' + str(ce))
+            return {}, str(ce)
+        except Exception as e:
+            logger.exception('Caught exception')
+            return {}, str(e)
 
-        return_json = {}
-        reader = csv.DictReader(filter(lambda row: row[0] != '#',
-                                       io.StringIO(res.decode('utf-8'))),
-                                       dialect='excel-tab',
-                                       fieldnames=['a', 'b', 'c', 'd'])
-        counter = 0
-        for row in reader:
-            return_json[counter] = [row.get('a'), row.get('b'),
-                                    row.get('c'), row.get('d')]
-            counter += 1
-
-        return return_json, None
+        return {}, 'unknown error'
 
     def run_tasks(self, keep_looping=lambda: True):
         """
@@ -624,7 +620,7 @@ def run(theargs, keep_looping=lambda: True):
                                 deletetaskfactory=dfac,
                                 dockerclient=docker.from_env(),
                                 dockerimagename=theargs.dockerimagename,
-                                clixopath=theargs.clixopath)
+                                runddotpath=os.path.join(ab_tdir, RUNDDOT))
 
         runner.run_tasks(keep_looping=keep_looping)
     except Exception:
