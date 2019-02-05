@@ -74,6 +74,8 @@ DELETE_REQUESTS = 'delete_requests'
 # key in result dictionary denoting the
 # result data
 RESULT_KEY = 'result'
+NDEXURL_KEY = 'ndexurl'
+HIVIEWURL_KEY = 'hiviewurl'
 
 # key in result dictionary denoting input parameters
 PARAMETERS_KEY = 'parameters'
@@ -84,6 +86,7 @@ NDEXSERVER_PARAM = 'ndexserver'
 NDEXUSER_PARAM = 'ndexuser'
 NDEXPASS_PARAM = 'ndexpass'
 NDEXNAME_PARAM = 'ndexname'
+HIVIEWURL_PARAM = 'hiviewurl'
 
 
 api = Api(app, version=str(__version__),
@@ -166,7 +169,7 @@ def create_task(params):
     """
     params['uuid'] = get_uuid()
     params['tasktype'] = 'ddot_ontology'
-    taskpath = os.path.join(get_submit_dir(), str(params['remoteip']),
+    taskpath = os.path.join(get_submit_dir(), str(params[REMOTEIP_PARAM]),
                             str(params['uuid']))
     try:
         original_umask = os.umask(0)
@@ -349,6 +352,22 @@ class RunOntology(Resource):
                              location='form')
     post_parser.add_argument(BETA_PARAM, type=float, default=0.5,
                              help='Merge density for overlapping clusters',
+                             location='form')
+    post_parser.add_argument(NDEXNAME_PARAM, default='DDOTontology',
+                             help='Name to use for network stored in NDEx',
+                             location='form')
+    post_parser.add_argument(NDEXSERVER_PARAM, default='test.ndexbio.org',
+                             help='NDEx server to use',
+                             location='form')
+    post_parser.add_argument(NDEXUSER_PARAM, default='ddot_anon',
+                             help='NDEx username',
+                             location='form')
+    post_parser.add_argument(NDEXPASS_PARAM, default='ddot_anon',
+                             help='NDEx password',
+                             location='form')
+    post_parser.add_argument(HIVIEWURL_PARAM,
+                             default='http://hiview-test.ucsd.edu',
+                             help='HiView server',
                              location='form')
 
     @api.doc('Runs Ontology')
