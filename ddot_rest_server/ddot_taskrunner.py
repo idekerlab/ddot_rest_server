@@ -321,6 +321,61 @@ class FileBasedTask(object):
         return os.path.join(self._taskdir,
                             ddot_rest_server.TMP_RESULT)
 
+    def get_ndexname(self):
+        """
+        Gets ndex name parameter
+        :return: ndex name parameter or None
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.NDEXNAME_PARAM not in self._taskdict:
+            return None
+        return self._taskdict[ddot_rest_server.NDEXNAME_PARAM]
+
+    def get_ndexserver(self):
+        """
+        Gets ndex server parameter
+        :return: ndex server or None
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.NDEXSERVER_PARAM not in self._taskdict:
+            return None
+        return self._taskdict[ddot_rest_server.NDEXSERVER_PARAM]
+
+    def get_ndexuser(self):
+        """
+        Gets ndex user parameter
+        :return: ndex user or None
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.NDEXUSER_PARAM not in self._taskdict:
+            return None
+        return self._taskdict[ddot_rest_server.NDEXUSER_PARAM]
+
+    def get_ndexpass(self):
+        """
+        Gets ndex password
+        :return: ndex password or None
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.NDEXPASS_PARAM not in self._taskdict:
+            return None
+        return self._taskdict[ddot_rest_server.NDEXPASS_PARAM]
+
+    def get_hiviewurl(self):
+        """
+        Gets ndex password
+        :return: ndex password or None
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.HIVIEWURL_PARAM not in self._taskdict:
+            return None
+        return self._taskdict[ddot_rest_server.HIVIEWURL_PARAM]
+
 
 class FileBasedSubmittedTaskFactory(object):
     """
@@ -492,12 +547,34 @@ class DDotTaskRunner(object):
 
         result, emsg = self._run_ddot(task)
 
-        logger.info('Task processing completed')
+        if emsg is not None:
+            logger.error('Task had error: ' + emsg)
+        else:
+            logger.info('Task processing completed')
+
         task.set_result_data(result)
         task.save_task()
-        task.move_task(ddot_rest_server.DONE_STATUS,
-                       delete_temp_files=delete_temp_files)
+        if emsg is not None:
+            status = ddot_rest_server.ERROR_STATUS
+        else:
+            status = ddot_rest_server.DONE_STATUS
+        task.move_task(status,
+                       delete_temp_files=delete_temp_files,
+                       error_message=emsg)
         return
+
+    def _generate_hiview_link(self, task, ndexurl):
+        """
+        Creates hiview link from ndexurl pointing to NDEx network
+        # http://hiview-test.ucsd.edu/2e064925-28e0-11e9-9fc6-0660b7976219?type=test&server=http://test.ndexbio.org
+        :param ndexurl:
+        :return:
+        """
+        if ndexurl is None:
+            return ''
+
+        splitlink = ndexurl.split('/#/network/')
+        return task.get_hiviewurl() + '/' + splitlink[1] + '?type=test&server=' + splitlink[0]
 
     def _run_ddot(self, task):
         """
@@ -518,29 +595,36 @@ class DDotTaskRunner(object):
             cmd = ('/bin/bash -c "' + self.runddotpath +
                    ' --alpha ' + str(task.get_alpha()) +
                    ' --beta ' + str(task.get_beta()) +
-                   ' ' + task.get_interactionfile() + '"')
+                   ' --ndexname ' + str(task.get_ndexname()) +
+                   ' --ndexserver ' + str(task.get_ndexserver()) +
+                   ' --ndexuser ' + str(task.get_ndexuser()) +
+                   ' --ndexpass ' + str(task.get_ndexpass()) +
+                   ' ' + task.get_interactionfile() + ' 2>&1"')
             volumes = {task.get_taskdir(): {'bind': task.get_taskdir(),
                                             'mode': 'ro'},
                        runddot_dir: {'bind': runddot_dir,
                                      'mode': 'ro'}}
+            logger.info('Running command: ' + cmd)
             res = self.docker_client.containers.run(self.dockerimagename, cmd,
                                                     volumes=volumes,
                                                     working_dir=task.get_taskdir())
 
-            logger.info('Done running: ' + res.decode('utf-8'))
-            return_json = {}
-            return_json['result'] = json.loads(res.decode('utf-8'))
-
-            return return_json, None
+            logger.info('Done running output (' + res.decode('utf-8') + ')')
+            res_json = json.loads(res.decode('utf-8'))
+            logger.info('Initial json: ' + str(res_json))
+            if ddot_rest_server.NDEXURL_KEY in res_json:
+                res_json[ddot_rest_server.HIVIEWURL_KEY] = self._generate_hiview_link(task,
+                                                                                      res_json[ddot_rest_server.NDEXURL_KEY])
+            return res_json, None
 
         except ContainerError as ce:
             logger.exception('Caught docker exception, but its probably ' + str(ce))
-            return {}, str(ce)
+            return {'error': str(ce)}, str(ce)
         except Exception as e:
             logger.exception('Caught exception')
-            return {}, str(e)
+            return {'error': str(e)}, str(e)
 
-        return {}, 'unknown error'
+        return {'error': 'unknown error'}, 'unknown error'
 
     def run_tasks(self, keep_looping=lambda: True):
         """
