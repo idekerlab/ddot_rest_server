@@ -41,9 +41,9 @@ conda install -y -c conda-forge flask-restplus
 # install mod_wsgi for apache
 pip install mod_wsgi
 
-# install fake_cytoscapesearch
+# install ddot_rest_server
 # TODO this should install the version in /vagrant
-git clone --single-branch --depth 1 https://github.com/coleslaw481/ddot_rest_server.git
+git clone --single-branch --depth 1 https://github.com/idekerlab/ddot_rest_server.git
 pushd ddot_rest_server
 make dist
 pip install dist/ddot_rest_server*whl

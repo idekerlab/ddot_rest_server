@@ -6,15 +6,15 @@ ddot_rest_server
 .. image:: https://img.shields.io/pypi/v/ddot_rest_server.svg
         :target: https://pypi.python.org/pypi/ddot_rest_server
 
-.. image:: https://img.shields.io/travis/coleslaw481/ddot_rest_server.svg
-        :target: https://travis-ci.org/coleslaw481/ddot_rest_server
+.. image:: https://img.shields.io/travis/idekerlab/ddot_rest_server.svg
+        :target: https://travis-ci.org/idekerlab/ddot_rest_server
 
 
 
 
 DDOT REST Service
 
-`For more information please click here to visit our wiki <https://github.com/coleslaw481/ddot_rest_server/wiki>`_
+`For more information please click here to visit our wiki <https://github.com/idekerlab/ddot_rest_server/wiki>`_
 
 
 Compatibility
@@ -43,7 +43,7 @@ It is highly reccommended one use `Anaconda <https://www.anaconda.com/>`_ for Py
 
 .. code:: bash
 
-  git clone https://github.com/coleslaw481/ddot_rest_server.git
+  git clone https://github.com/idekerlab/ddot_rest_server.git
   cd ddot_rest_server
   make install
 
@@ -63,7 +63,7 @@ Running service in development mode
 
 
 
-`Click here for information on launching service via Vagrant VM <https://github.com/coleslaw481/ddot_rest_server/wiki/NAGA-REST-under-Vagrant-Virtual-Machine>`_
+`Click here for information on launching service via Vagrant VM <https://github.com/idekerlab/ddot_rest_server/wiki/NAGA-REST-under-Vagrant-Virtual-Machine>`_
 
 
 Example usage of service
@@ -78,7 +78,7 @@ TODO
 Bugs
 -----
 
-Please report them `here <https://github.com/coleslaw481/ddot_rest_server/issues>`_
+Please report them `here <https://github.com/idekerlab/ddot_rest_server/issues>`_
 
 Acknowledgements
 ----------------

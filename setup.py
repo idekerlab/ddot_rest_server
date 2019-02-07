@@ -59,7 +59,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/coleslaw481/ddot_rest_server',
+    url='https://github.com/idekerlab/ddot_rest_server',
     version=version,
     zip_safe=False,
 )
