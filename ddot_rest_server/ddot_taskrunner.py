@@ -591,12 +591,14 @@ class DDotTaskRunner(object):
                    runddot_dir + ':' + runddot_dir+':ro',
                    self.dockerimagename,
                    self.runddotpath,
-                   '--alpha', str(task.get_alpha()),
-                   '--beta', str(task.get_beta()),
+                   # '--alpha', str(task.get_alpha()),
+                   # '--beta', str(task.get_beta()),
                    '--ndexname', str(task.get_ndexname()),
                    '--ndexserver', str(task.get_ndexserver()),
                    '--ndexuser', str(task.get_ndexuser()),
                    '--ndexpass', str(task.get_ndexpass()),
+                   '--alg', # TODO: Chris
+                   '--config', # TODO: Chris
                    task.get_interactionfile()]
 
             logger.info('Running command: ' + str(' '.join(cmd)))
