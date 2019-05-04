@@ -35,7 +35,7 @@ def _parse_arguments(desc, args):
                              'tasks')
     parser.add_argument('--dockerimagename', default='michaelkyu/ddot-anaconda3',
                         help='Name of docker image to use to run ddot (default'
-                             ' michaelkyu/ddot-anaconda3)')
+                             ' michaelkyu/ddot-anaconda3)') # TODO: change the docker path
     parser.add_argument('--docker', default='/usr/bin/docker',
                         help='Path to docker')
     parser.add_argument('--disabledelete', action='store_true',
