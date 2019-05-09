@@ -65,8 +65,11 @@ def run_ddot(theargs):
         kwargs = {}
         with open(theargs.config) as fh:
             for l in fh:
-                (k, v) = l.strip().split()
-                kwargs[k] = v
+                if l.startswith('#'):
+                    continue
+                else:
+                    (k, v) = l.strip().split()
+                    kwargs[k] = v
 
         if theargs.alg == 'clixo':
             ont = run_clixo(graph, **kwargs)
