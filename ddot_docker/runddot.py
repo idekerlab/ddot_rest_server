@@ -35,7 +35,6 @@ def _parse_arguments(desc, args):
                         help='Layout of network on NDEx (default bubble-collect)')
     parser.add_argument('--ndexvisibility', default='PUBLIC',
                         help='Visibility of network on NDEx (default PUBLIC)')
-    parser.add_argument('--alg', choices=['clixo', 'community'], help='the algorithm to use; if clixo, use run_clixo function; if community, use run_community_alg.') # TODO: clixo and other algorithms should be merged
     parser.add_argument('--config', help='a text file to configure the algorithm')
     return parser.parse_args(args)
 
@@ -70,10 +69,11 @@ def run_ddot(theargs):
                 else:
                     (k, v) = l.strip().split()
                     kwargs[k] = v
-
-        if theargs.alg == 'clixo':
+        if not ('Method' in kwargs):
+            logger.exception('Method not specified in configuration file. Add line such as: Method\tclixo1.0b')
+        elif kwargs['Method'].startswith('clixo'):
             ont = run_clixo(graph, **kwargs)
-        elif theargs.alg == 'community':
+        else:
             ont = run_community_alg(graph, **kwargs)
 
         if theargs.ndexserver.startswith('http://'):
