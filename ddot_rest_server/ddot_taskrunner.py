@@ -83,7 +83,8 @@ class FileBasedTask(object):
     UUID = 'uuid'
     TASK_FILES = [ddot_rest_server.RESULT,
                   ddot_rest_server.TASK_JSON,
-                  ddot_rest_server.INTERACTION_FILE_PARAM]
+                  ddot_rest_server.INTERACTION_FILE_PARAM,
+                  ddot_rest_server.CLUSTEROUT]
 
     def __init__(self, taskdir, taskdict):
         self._taskdir = taskdir
@@ -780,9 +781,9 @@ class DDotTaskRunner(object):
         try:
             runddot_dir = os.path.dirname(self.runddotpath)
             cmd = [self.docker, 'run', '-v',
-                   task.get_taskdir() + ':' + task.get_taskdir() + ':ro',
+                   task.get_taskdir() + ':' + task.get_taskdir(),
                    '-v',
-                   runddot_dir + ':' + runddot_dir+':ro',
+                   runddot_dir + ':' + runddot_dir + ':ro',
                    self.dockerimagename,
                    self.runddotpath,
                    '--alpha', str(task.get_alpha()),
@@ -791,6 +792,8 @@ class DDotTaskRunner(object):
                    '--ndexserver', str(task.get_ndexserver()),
                    '--ndexuser', str(task.get_ndexuser()),
                    '--ndexpass', str(task.get_ndexpass()),
+                   '--output', os.path.join(task.get_taskdir(),
+                                            ddot_rest_server.CLUSTEROUT),
                    task.get_interactionfile()]
 
             logger.info('Running command: ' + str(' '.join(cmd)))

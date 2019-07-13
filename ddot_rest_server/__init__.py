@@ -54,6 +54,7 @@ TASK_JSON = 'task.json'
 LOCATION = 'Location'
 TMP_RESULT = 'result.tmp'
 RESULT = 'result.json'
+CLUSTEROUT = 'rawcluster.output'
 
 ERROR_PARAM = 'error'
 REMOTEIP_PARAM = 'remoteip'
@@ -532,6 +533,39 @@ class GetQueryResult(Resource):
             er.message = 'Caught exception'
             er.description = str(e)
             return marshal(er, ERROR_RESP), 500
+
+
+@ns.route('/<string:id>/rawclusteringoutput', strict_slashes=False)
+class GetQueryResult(Resource):
+    """More class doc here"""
+
+    @api.response(200, 'Successful response from server, output will be '
+                       'raw output as text')
+    @api.response(404, 'Task not found or not complete')
+    @api.response(429, 'Too many requests', TOO_MANY_REQUESTS)
+    @api.response(500, 'Internal server error', ERROR_RESP)
+    def get(self, id):
+        """
+        If a task has completed returns raw output from clustering
+        algorithm with mimetype text/plain.
+        """
+        cleanid = id.strip()
+
+        taskpath = get_task(cleanid, basedir=get_done_dir())
+
+        if taskpath is None:
+            resp = flask.make_response()
+            resp.status_code = 404
+            return resp
+
+        result = os.path.join(taskpath, CLUSTEROUT)
+        if not os.path.isfile(result):
+            er = ErrorResponse()
+            er.message = 'No output found from clustering algorithm'
+            er.description = self._get_task_parameters(taskpath)
+            return marshal(er, ERROR_RESP), 500
+
+        return flask.send_file(result, mimetype='text/plain')
 
 
 class ServerStatus(object):

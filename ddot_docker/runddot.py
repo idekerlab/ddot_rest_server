@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-
+import os
+import stat
 import sys
 import argparse
 import pandas as pd
@@ -45,6 +46,9 @@ def _parse_arguments(desc, args):
                         help='Path to clixo command in docker image (defa'
                              'ult /opt/conda/lib/python3.7/site-packages/'
                              'ddot/clixo_0.3/clixo')
+    parser.add_argument('--output',
+                        help='If set, write output of algorithm to '
+                             'file specified')
     return parser.parse_args(args)
 
 
@@ -73,6 +77,18 @@ def run_ddot(theargs):
         (e_code, c_out, c_err) = run_clixo(theargs.clixopath, theargs.input, theargs.alpha, theargs.beta)
         df = pd.read_csv(io.StringIO(c_out.decode('utf-8')), sep='\t',
                          engine='python', header=None, comment='#')
+
+        if theargs.output is not None:
+            try:
+                with open(theargs.output, 'wb') as f:
+                    f.write(c_out)
+                outputdir = os.path.dirname(theargs.output)
+                statres = os.stat(outputdir)
+                os.chown(theargs.output, statres[stat.ST_UID],
+                         statres[stat.ST_GID])
+            except Exception as ex:
+                sys.stderr.write('Caught exception trying to write file or'
+                                 'change permission: ' + str(ex))
 
         ont1 = Ontology.from_table(df, clixo_format=True, parent=0, child=1)
 
