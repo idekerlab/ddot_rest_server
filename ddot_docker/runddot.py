@@ -81,7 +81,11 @@ def run_ddot(theargs):
         else:
             server = 'http://' + theargs.ndexserver
 
+        idf = pd.read_csv(theargs.input, sep='\t', engine='python', header=None, comment='#')
+        idf.rename(columns={0: 'Gene1', 1: 'Gene2', 2: 'has_edge'}, inplace=True)
         ont_url, G = ont1.to_ndex(name=theargs.ndexname,
+                                  network=idf,
+                                  main_feature='has_edge',
                                   ndex_server=server,
                                   ndex_pass=theargs.ndexuser,
                                   ndex_user=theargs.ndexpass,
