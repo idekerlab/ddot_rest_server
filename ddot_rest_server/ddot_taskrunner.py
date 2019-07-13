@@ -9,10 +9,12 @@ import logging.config
 import time
 import shutil
 import json
+from json import JSONDecodeError
 import glob
 import subprocess
 import daemon
 import ddot_rest_server
+from ndex2.client import Ndex2
 
 logger = logging.getLogger('ddottaskrunner')
 
@@ -44,9 +46,31 @@ def _parse_arguments(desc, args):
     parser.add_argument('--nodaemon', default=False, action='store_true',
                         help='If set program will NOT run in daemon mode')
     parser.add_argument('--logconfig', help='Logging configuration file')
+    parser.add_argument('--verbose', '-v', action='count',
+                        help='Increases logging verbosity for logging ONLY '
+                             'if --logconfig is NOT set, max is 4',
+                        default=1)
     parser.add_argument('--version', action='version',
                         version=('%(prog)s ' + ddot_rest_server.__version__))
     return parser.parse_args(args)
+
+
+def _setuplogging(theargs):
+    """Sets up logging"""
+    level = (50 - (10 * theargs.verbose))
+    logging.basicConfig(format=LOG_FORMAT,
+                        level=level)
+    for k in logging.Logger.manager.loggerDict.keys():
+        thelog = logging.Logger.manager.loggerDict[k]
+
+        # not sure if this is the cleanest way to do this
+        # but the dictionary of Loggers has a PlaceHolder
+        # object which tosses an exception if setLevel()
+        # is called so I'm checking the class names
+        try:
+            thelog.setLevel(level)
+        except AttributeError:
+            pass
 
 
 class FileBasedTask(object):
@@ -362,6 +386,24 @@ class FileBasedTask(object):
             return None
         return self._taskdict[ddot_rest_server.HIVIEWURL_PARAM]
 
+    def get_networkattributes(self):
+        """
+        Gets ndexattributes converted from raw string format
+        to list of dict
+        :return: attributes as list of dict which could be empty or None
+                 if there was data, but there was a bigger error
+        :rtype: list
+        """
+        if self._taskdict is None:
+            return None
+        if ddot_rest_server.NETATTRIB_PARAM not in self._taskdict:
+            return None
+
+        rawattribs = self._taskdict[ddot_rest_server.NETATTRIB_PARAM]
+        if rawattribs is None:
+            return None
+        return json.loads(rawattribs)
+
 
 class FileBasedSubmittedTaskFactory(object):
     """
@@ -505,6 +547,146 @@ class DeletedFileBasedTaskFactory(object):
         return None
 
 
+class NetworkAttributeSetter(object):
+    """
+    Sets network attributes on a network in NDEx
+    """
+
+    def __init__(self):
+        """
+        Constructor
+        :param theargs: command line arguments ie theargs.name theargs.type
+        """
+        pass
+
+    def _get_client(self, server, user, password, altclient=None):
+        """
+        Gets Ndex2 client
+        :return: Ndex2 python client
+        :rtype: :py:class:`~ndex2.client.Ndex2`
+        """
+        return Ndex2(server, user, password)
+
+    def _remove_existing_attribute(self, attrib_name, net_attribs):
+        """
+        Removes from net_attribs any dicts whose value of 'n'
+        matches self._args.name
+        :param net_attribs: network attributes
+        :type net_attribs: list of dicts
+        :return: None
+        """
+        items_to_delete = []
+        for theindex, entry in enumerate(net_attribs):
+            if entry['n'] == attrib_name:
+                items_to_delete.append(theindex)
+
+        items_to_delete.sort(reverse=True)
+        for theindex in items_to_delete:
+            del net_attribs[theindex]
+
+    def _remove_name_description_summary(self, net_attribs):
+        """
+        Removes from net_attribs any dicts whose value of 'n'
+        matches self._args.name
+        :param net_attribs: network attributes
+        :type net_attribs: list of dicts
+        :return: None
+        """
+        excludelist = ['name', 'description', 'version']
+        items_to_delete = []
+        for theindex, entry in enumerate(net_attribs):
+            if entry['n'] in excludelist:
+                items_to_delete.append(theindex)
+        items_to_delete.sort(reverse=True)
+        for theindex in items_to_delete:
+            del net_attribs[theindex]
+
+    def _convert_attributes_to_ndexpropertyvaluepair(self, net_attribs):
+        """
+        The NDEx REST endpoint used in this class
+        http://openapi.ndextools.org/#/Network/put_network__networkid__properties
+        actually follows a legacy implementation that differs from CX format.
+
+        This function converts the list of dicts into structure that will
+        work with the REST service endpoint
+        :return: updated list
+        :rtype list of dicts
+        """
+        new_attribs = []
+        for entry in net_attribs:
+            newentry = {'predicateString': entry['n']}
+            if 'd' in entry:
+                newentry['dataType'] = entry['d']
+                if entry['d'].startswith('list'):
+                    newentry['value'] = json.dumps(entry['v'])
+                else:
+                    newentry['value'] = entry['v']
+            else:
+                newentry['value'] = entry['v']
+            new_attribs.append(newentry)
+        return new_attribs
+
+    def _add_task_attributes_to_new_attribs(self, task_attribs, new_attribs):
+        """
+
+        :param task_attribs:
+        :param new_attribs:
+        :return:
+        """
+        excludelist = ['name', 'description', 'version']
+        for task_a in task_attribs:
+            if task_a['n'] in excludelist:
+                logger.info(task_a['n'] +
+                            ' is in exclude list skipping')
+                continue
+            new_entry = {'predicateString': task_a['n']}
+            if 'd' in task_a:
+                new_entry['dataType'] = task_a['d']
+            new_entry['value'] = task_a['v']
+            new_attribs.append(new_entry)
+
+    def update_network_attributes(self, task, networkuuid):
+        """
+        Connects to NDEx server, gets network attributes for network
+        with --uuid set on command line, updates network attributes
+        with value set in --name, --value, --type and uses
+        PUT network/<NETWORKID>/properties endpoint to update
+        the network attributes for network
+        :raises NDExUtilError if there is an error
+        :return: None upon success or str with error message upon failure
+        :rtype: str
+        """
+        task_attribs = task.get_networkattributes()
+        if task_attribs is None:
+            return None
+
+        client = self._get_client(task.get_ndexserver(),
+                                  task.get_ndexuser(),
+                                  task.get_ndexpass())
+        res = client.get_network_aspect_as_cx_stream(networkuuid,
+                                                     'networkAttributes')
+        if res.status_code != 200:
+            return 'Received error status when querying NDEx: ' +\
+                   str(res.status_code) + ' : ' + str(res.text)
+
+        net_attribs = json.loads(res.text)
+
+        # remove name description summary
+        self._remove_name_description_summary(net_attribs)
+
+        # remove existing attribute if found
+        for task_a in task_attribs:
+            self._remove_existing_attribute(task_a['n'], net_attribs)
+
+        new_attribs = self._convert_attributes_to_ndexpropertyvaluepair(net_attribs)
+
+        self._add_task_attributes_to_new_attribs(task_attribs, new_attribs)
+
+        logger.debug(str(new_attribs))
+        res = client.set_network_properties(networkuuid, new_attribs)
+        return res
+
+
 class DDotTaskRunner(object):
     """
     Runs tasks created by DDOT REST service
@@ -514,10 +696,12 @@ class DDotTaskRunner(object):
                  deletetaskfactory=None,
                  docker=None,
                  dockerimagename=None,
-                 runddotpath=None):
+                 runddotpath=None,
+                 netattribsetter=None):
         self._taskfactory = taskfactory
         self._wait_time = wait_time
         self._deletetaskfactory = deletetaskfactory
+        self._netattribsetter = netattribsetter
         self.docker = docker
         self.dockerimagename = dockerimagename
         self.runddotpath = runddotpath
@@ -547,6 +731,16 @@ class DDotTaskRunner(object):
         task.move_task(status,
                        error_message=emsg)
         return
+
+    def _get_uuid_of_network(self, ndexurl):
+        """
+
+        :param ndexurl:
+        :return:
+        """
+        if ndexurl is None:
+            return ''
+        return ndexurl.split('/#/network/')[1]
 
     def _generate_hiview_link(self, task, ndexurl):
         """
@@ -618,6 +812,9 @@ class DDotTaskRunner(object):
             if ddot_rest_server.NDEXURL_KEY in res_json:
                 res_json[ddot_rest_server.HIVIEWURL_KEY] = self._generate_hiview_link(task,
                                                                                       res_json[ddot_rest_server.NDEXURL_KEY])
+                netuuid = self._get_uuid_of_network(res_json[ddot_rest_server.NDEXURL_KEY])
+                self._netattribsetter.update_network_attributes(task, netuuid)
+
             return res_json, None
         except Exception as e:
             logger.exception('Caught exception')
@@ -686,8 +883,15 @@ def run(theargs, keep_looping=lambda: True):
     :return:
     """
     try:
-        logging.config.fileConfig(theargs.logconfig, disable_existing_loggers=False)
-        logger.debug('Config file: ' + theargs.logconfig + ' loaded')
+        if theargs.logconfig is None:
+            _setuplogging(theargs)
+        else:
+            logging.config.fileConfig(
+                theargs.logconfig,
+                disable_existing_loggers=False
+            )
+            logger.debug('Config file: ' + theargs.logconfig + ' loaded')
+
         ab_tdir = os.path.abspath(theargs.taskdir)
         logger.debug('Task directory set to: ' + ab_tdir)
 
@@ -702,7 +906,8 @@ def run(theargs, keep_looping=lambda: True):
                                 deletetaskfactory=dfac,
                                 dockerimagename=theargs.dockerimagename,
                                 docker=theargs.docker,
-                                runddotpath=os.path.join(ab_tdir, RUNDDOT))
+                                runddotpath=os.path.join(ab_tdir, RUNDDOT),
+                                netattribsetter=NetworkAttributeSetter())
 
         runner.run_tasks(keep_looping=keep_looping)
     except Exception:
