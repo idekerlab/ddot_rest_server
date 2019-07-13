@@ -24,7 +24,8 @@ requirements = [
     'flask',
     'flask-restplus',
     'Flask-Limiter',
-    'python-daemon'
+    'python-daemon',
+    'ndex2'
 ]
 
 setup_requirements = [ ]
